@@ -26,7 +26,7 @@ export interface Movie {
 }
 
 export type VideoStatus = "pending" | "processing" | "ready" | "failed";
-export type VideoVisibility = "public" | "private" | "premium";
+export type VideoVisibility = "public" | "private";
 export type SubtitleLanguage = "fr" | "en";
 
 export interface Subtitle {
@@ -55,7 +55,7 @@ export interface Video {
 }
 
 export type LiveStatus = "scheduled" | "live" | "ended" | "canceled";
-export type LiveVisibility = "public" | "private" | "premium";
+export type LiveVisibility = "public" | "private";
 
 export interface LiveReplay {
   id: string;
@@ -108,21 +108,6 @@ export interface LoginResult {
   pre_auth_token?: string;
 }
 
-export type PaymentStatus = "pending" | "success" | "failed" | "canceled";
-
-export interface Payment {
-  id: string;
-  provider: "cinetpay";
-  transaction_id: string;
-  amount: string;
-  currency: string;
-  status: PaymentStatus;
-  payment_url: string;
-  description: string;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface Comment {
   id: string;
   author_email: string;
@@ -164,37 +149,6 @@ export interface Conversation {
   last_message: Message | null;
   created_at: string;
   updated_at: string;
-}
-
-export type PlanTier = "basic" | "premium" | "vip" | "enterprise";
-export type BillingPeriod = "weekly" | "monthly" | "yearly";
-
-export interface Plan {
-  id: string;
-  name: string;
-  slug: string;
-  tier: PlanTier;
-  description: string;
-  price: string;
-  currency: string;
-  billing_period: BillingPeriod;
-  trial_days: number;
-  features: string[];
-  is_active: boolean;
-}
-
-export type SubscriptionStatus = "pending" | "trialing" | "active" | "past_due" | "canceled" | "expired";
-
-export interface Subscription {
-  id: string;
-  plan: Plan;
-  status: SubscriptionStatus;
-  trial_end: string | null;
-  current_period_start: string | null;
-  current_period_end: string | null;
-  auto_renew: boolean;
-  canceled_at: string | null;
-  created_at: string;
 }
 
 export type WatchPartyStatus = "scheduled" | "live" | "ended" | "canceled";
@@ -250,7 +204,7 @@ export interface CmsPage {
   created_at: string;
 }
 
-export type NotificationCategory = "info" | "comment" | "order" | "payment" | "live" | "message" | "system";
+export type NotificationCategory = "info" | "comment" | "live" | "message" | "system";
 
 export interface AppNotification {
   id: string;
@@ -269,15 +223,6 @@ export interface DashboardOverview {
     new_last_30_days: number;
     by_role: Record<string, number>;
   };
-  subscriptions: {
-    active: number;
-    total: number;
-  };
-  revenue: {
-    total: string;
-    last_30_days: string;
-    successful_payments: number;
-  };
   videos: {
     total: number;
     ready: number;
@@ -295,10 +240,30 @@ export interface DashboardOverview {
   };
 }
 
+export interface WatchlistItem {
+  id: string;
+  movie: Movie;
+  created_at: string;
+}
+
 export interface SearchResults {
   query: string;
   movies: Movie[];
   videos: Video[];
   live_streams: LiveStream[];
   posts: unknown[];
+}
+
+export type AdCreativeType = "video" | "image";
+export type AdPlacement = "pre_roll";
+
+export interface Ad {
+  id: string;
+  title: string;
+  creative_type: AdCreativeType;
+  placement: AdPlacement;
+  video_file: string | null;
+  image: string | null;
+  duration_seconds: number | null;
+  click_url: string;
 }

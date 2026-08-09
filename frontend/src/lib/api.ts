@@ -1,5 +1,7 @@
 import { API_BASE_URL } from "@/lib/config";
 import type {
+  Ad,
+  AdPlacement,
   AppNotification,
   AuthTokens,
   CmsPage,
@@ -12,12 +14,10 @@ import type {
   Movie,
   Paginated,
   PageType,
-  Payment,
-  Plan,
   Post,
   SearchResults,
-  Subscription,
   Subtitle,
+  WatchlistItem,
   User,
   UserSearchResult,
   Video,
@@ -106,6 +106,10 @@ export function getMovies(
 
 export function getMovie(id: string) {
   return request<Movie>(`/api/v1/catalog/movies/${id}/`);
+}
+
+export function getMovieRecommendations(id: string) {
+  return request<Paginated<Movie>>(`/api/v1/catalog/movies/${id}/recommendations/`);
 }
 
 export function search(q: string) {
@@ -213,32 +217,6 @@ export function markConversationRead(conversationId: string, token: string) {
   );
 }
 
-// ---- Abonnements ----
-
-export function getPlans() {
-  return request<Paginated<Plan>>("/api/v1/subscriptions/plans/");
-}
-
-export function subscribeToPlan(planId: string, token: string) {
-  return request<Subscription>("/api/v1/subscriptions/subscribe/", {
-    method: "POST",
-    body: JSON.stringify({ plan_id: planId }),
-    token,
-  });
-}
-
-export function getMySubscription(token: string) {
-  return request<Subscription>("/api/v1/subscriptions/me/", { token });
-}
-
-export function cancelSubscription(token: string) {
-  return request<Subscription>("/api/v1/subscriptions/cancel/", { method: "POST", token });
-}
-
-export function checkoutSubscription(token: string) {
-  return request<Payment>("/api/v1/payments/checkout/", { method: "POST", token });
-}
-
 // ---- Visionnage entre amis (watch parties) ----
 
 export function getWatchPartySuggestions(token: string) {
@@ -331,6 +309,36 @@ export function deleteSubtitle(subtitleId: string, token: string) {
   return request<void>(`/api/v1/videos/subtitles/${subtitleId}/`, { method: "DELETE", token });
 }
 
+// ---- Ma liste & historique de visionnage ----
+
+export function getWatchlist(token: string) {
+  return request<Paginated<WatchlistItem>>("/api/v1/library/watchlist/", { token });
+}
+
+export function toggleWatchlist(movieId: string, token: string) {
+  return request<{ in_watchlist: boolean }>("/api/v1/library/watchlist/toggle/", {
+    method: "POST",
+    body: JSON.stringify({ movie_id: movieId }),
+    token,
+  });
+}
+
+export function getWatchlistStatus(movieId: string, token: string) {
+  return request<{ in_watchlist: boolean }>(`/api/v1/library/watchlist/status/${movieId}/`, { token });
+}
+
+export function updateWatchHistory(videoId: string, positionSeconds: number, token: string) {
+  return request<{ position_seconds: number }>("/api/v1/library/history/", {
+    method: "POST",
+    body: JSON.stringify({ video: videoId, position_seconds: Math.floor(positionSeconds) }),
+    token,
+  });
+}
+
+export function getWatchHistory(videoId: string, token: string) {
+  return request<{ position_seconds: number }>(`/api/v1/library/history/${videoId}/`, { token });
+}
+
 // ---- Auth ----
 
 export function registerAccount(payload: {
@@ -414,4 +422,10 @@ export function markNotificationRead(id: string, token: string) {
 
 export function markAllNotificationsRead(token: string) {
   return request<{ marked_read: number }>("/api/v1/notifications/read-all/", { method: "POST", token });
+}
+
+// ---- Publicités ----
+
+export function getNextAd(placement: AdPlacement = "pre_roll") {
+  return request<Ad | undefined>(`/api/v1/ads/next/?placement=${placement}`);
 }

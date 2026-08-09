@@ -1,17 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { ApiError, getVideo } from "@/lib/api";
+import { ApiError, getNextAd, getVideo, getWatchHistory, updateWatchHistory } from "@/lib/api";
 import { resolveMediaUrl } from "@/lib/media";
-import type { Video } from "@/lib/types";
+import type { Ad, Video } from "@/lib/types";
 import VideoPlayer from "@/components/VideoPlayer";
+import AdBreak from "@/components/AdBreak";
 
 export default function WatchPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { user, isLoading: authLoading, getValidAccessToken } = useAuth();
   const [video, setVideo] = useState<Video | null>(null);
+  const [resumeAt, setResumeAt] = useState(0);
+  const [preRollAd, setPreRollAd] = useState<Ad | null>(null);
+  const [adDone, setAdDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -28,6 +32,10 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
       try {
         const data = await getVideo(id, token);
         if (!cancelled) setVideo(data);
+        const history = await getWatchHistory(id, token).catch(() => null);
+        if (!cancelled && history) setResumeAt(history.position_seconds);
+        const ad = await getNextAd("pre_roll").catch(() => undefined);
+        if (!cancelled && ad) setPreRollAd(ad);
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -44,6 +52,19 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
       cancelled = true;
     };
   }, [authLoading, user, id, getValidAccessToken]);
+
+  const handleProgress = useCallback(
+    (currentTime: number) => {
+      (async () => {
+        const token = await getValidAccessToken();
+        if (!token) return;
+        updateWatchHistory(id, currentTime, token).catch(() => {
+          // La reprise de lecture est un confort, pas une fonctionnalité critique : on ignore l'échec.
+        });
+      })();
+    },
+    [id, getValidAccessToken],
+  );
 
   if (authLoading || loading) {
     return <p className="px-4 py-24 text-center text-muted">Chargement...</p>;
@@ -83,15 +104,21 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-      <VideoPlayer
-        src={resolveMediaUrl(video.hls_master_playlist)!}
-        poster={resolveMediaUrl(video.thumbnail)}
-        subtitles={video.subtitles.map((subtitle) => ({
-          language: subtitle.language,
-          label: subtitle.label,
-          url: resolveMediaUrl(subtitle.url)!,
-        }))}
-      />
+      {preRollAd && !adDone ? (
+        <AdBreak ad={preRollAd} onFinished={() => setAdDone(true)} />
+      ) : (
+        <VideoPlayer
+          src={resolveMediaUrl(video.hls_master_playlist)!}
+          poster={resolveMediaUrl(video.thumbnail)}
+          subtitles={video.subtitles.map((subtitle) => ({
+            language: subtitle.language,
+            label: subtitle.label,
+            url: resolveMediaUrl(subtitle.url)!,
+          }))}
+          startAt={resumeAt}
+          onProgress={handleProgress}
+        />
+      )}
       <h1 className="mt-4 text-2xl font-bold text-foreground">{video.title}</h1>
       {video.description && <p className="mt-2 text-muted">{video.description}</p>}
     </div>
