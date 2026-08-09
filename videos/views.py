@@ -1,0 +1,109 @@
+from pathlib import Path
+
+from django.conf import settings
+from django.db.models import Q
+from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404
+from django.views import View
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics, status
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from accounts.permissions import IsContentManager
+from core.media_access import resolve_within, serve_protected_media
+from videos.models import Video
+from videos.permissions import CanAccessVideo
+from videos.serializers import VideoSerializer, VideoUploadSerializer
+from videos.tasks import process_video
+from videos.tokens import verify_hls_token
+
+
+class VideoUploadView(generics.CreateAPIView):
+    """Upload d'une vidéo source ; déclenche le transcodage HLS en tâche de fond."""
+
+    serializer_class = VideoUploadSerializer
+    permission_classes = [IsContentManager]
+
+    def perform_create(self, serializer):
+        video = serializer.save(owner=self.request.user)
+        process_video.delay(str(video.id))
+
+
+class VideoListView(generics.ListAPIView):
+    """Liste ses propres vidéos (tous statuts) + les vidéos publiques disponibles des autres."""
+
+    serializer_class = VideoSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Video.objects.select_related('owner')
+        if not user.is_admin:
+            queryset = queryset.filter(
+                Q(owner=user) | Q(status=Video.Status.READY, visibility=Video.Visibility.PUBLIC),
+            )
+        movie_id = self.request.query_params.get('movie')
+        if movie_id:
+            queryset = queryset.filter(movie_id=movie_id)
+        return queryset
+
+
+class VideoDetailView(generics.RetrieveDestroyAPIView):
+    serializer_class = VideoSerializer
+    queryset = Video.objects.all()
+    lookup_field = 'id'
+    permission_classes = [IsAuthenticated, CanAccessVideo]
+
+
+class VideoRetryView(APIView):
+    """Relance le traitement d'une vidéo en échec ou bloquée."""
+
+    permission_classes = [IsContentManager]
+
+    @extend_schema(request=None, responses=OpenApiTypes.OBJECT)
+    def post(self, request, id):
+        video = get_object_or_404(Video, id=id)
+        if video.owner != request.user and not request.user.is_admin:
+            raise PermissionDenied('Vous ne pouvez relancer que vos propres vidéos.')
+
+        video.status = Video.Status.PENDING
+        video.error_message = ''
+        video.save(update_fields=['status', 'error_message'])
+        process_video.delay(str(video.id))
+        return Response({'detail': 'Traitement relancé.'}, status=status.HTTP_202_ACCEPTED)
+
+
+class ProtectedHlsFileView(View):
+    """Sert les fichiers HLS (manifest + segments) d'une vidéo, jamais accessibles publiquement.
+
+    L'accès est prouvé par un token signé et temporaire (voir videos.tokens), délivré uniquement
+    par VideoDetailView après vérification de CanAccessVideo. Le lecteur (navigateur/hls.js) ne
+    peut pas envoyer d'en-tête Authorization sur chaque requête de segment : le token voyage donc
+    dans l'URL, et est repropagé dans chaque ligne des manifests .m3u8 (la résolution d'URL relative
+    du navigateur ignore la query string de l'URL de base, on doit donc la réinjecter nous-mêmes).
+    """
+
+    def get(self, request, video_id, relpath):
+        token = request.GET.get('token', '')
+        if not verify_hls_token(token, video_id):
+            raise Http404
+        video = get_object_or_404(Video, id=video_id, status=Video.Status.READY)
+
+        root = Path(settings.MEDIA_ROOT) / 'hls' / str(video.id)
+        target = resolve_within(root, relpath)
+        if not target.is_file():
+            raise Http404
+
+        if target.suffix == '.m3u8':
+            lines = []
+            for line in target.read_text().splitlines():
+                if line and not line.startswith('#'):
+                    sep = '&' if '?' in line else '?'
+                    line = f'{line}{sep}token={token}'
+                lines.append(line)
+            return HttpResponse('\n'.join(lines) + '\n', content_type='application/vnd.apple.mpegurl')
+
+        return serve_protected_media(f'hls/{video.id}/{relpath}', content_type='video/mp2t')

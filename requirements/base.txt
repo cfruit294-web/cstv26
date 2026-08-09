@@ -1,0 +1,17 @@
+Django>=5,<5.1
+djangorestframework
+djangorestframework-simplejwt
+django-cors-headers
+psycopg[binary]
+celery
+redis
+django-celery-beat
+python-decouple
+drf-spectacular
+Pillow
+pyotp
+gunicorn
+requests
+channels
+channels_redis
+daphne

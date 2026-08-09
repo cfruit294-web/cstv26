@@ -1,0 +1,40 @@
+# Ingestion RTMP (OBS/Wirecast) -> HLS + enregistrement automatique pour les rediffusions.
+# Doc complète : https://github.com/bluenviron/mediamtx
+#
+# Vérifie la version de l'image utilisée dans docker-compose.yml si MediaMTX refuse de démarrer :
+# la clé "all_others" (chemins non déclarés explicitement) a pu être renommée entre versions.
+
+rtmpAddress: :1935
+
+hls: yes
+hlsAddress: :8888
+hlsAllowOrigin: '*'
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+
+# Désactive les protocoles non utilisés par CSTV (on ne consomme que RTMP en entrée, HLS en sortie).
+rtsp: no
+rtmp: yes
+webrtc: no
+srt: no
+
+paths:
+  all_others:
+    # Chaque flux (chemin = clé de stream générée par LiveStream.stream_key) est enregistré en
+    # continu ; MediaMTX démarre un nouveau fichier à chaque (re)connexion de l'encodeur, ce qui
+    # donne un fichier par session de live, prêt à être repris comme rediffusion.
+    record: yes
+    recordPath: /recordings/%path/%Y-%m-%d_%H-%M-%S-%f
+    recordFormat: fmp4
+
+    # Prévient Django au début et à la fin de chaque flux (voir live.views.RtmpWebhookView).
+    # $MTX_PATH est fourni par MediaMTX à l'exécution ; ${RTMP_WEBHOOK_SECRET} vient de
+    # l'environnement du conteneur (voir docker-compose.yml).
+    runOnReady: >
+      curl -s -X POST http://web:8000/api/v1/live/webhook/rtmp/
+      -d secret=${RTMP_WEBHOOK_SECRET} -d name=$MTX_PATH -d event=publish
+    runOnReadyRestart: no
+
+    runOnNotReady: >
+      curl -s -X POST http://web:8000/api/v1/live/webhook/rtmp/
+      -d secret=${RTMP_WEBHOOK_SECRET} -d name=$MTX_PATH -d event=publish_done
