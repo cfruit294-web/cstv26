@@ -1,6 +1,8 @@
+from django.urls import reverse
 from rest_framework import serializers
 
 from live.models import LiveChatMessage, LiveStream
+from live.tokens import generate_live_hls_token
 from videos.tokens import generate_hls_token
 
 
@@ -27,11 +29,25 @@ class ReplaySerializer(serializers.Serializer):
 
 
 class LiveStreamSerializer(serializers.ModelSerializer):
-    """Vue publique : n'expose ni la clé de stream ni l'URL d'ingestion RTMP."""
+    """Vue publique : n'expose ni la clé de stream ni l'URL d'ingestion RTMP.
+
+    hls_playback_url pointe vers LiveHlsProxyView (relais côté Django), jamais directement vers
+    MediaMTX : l'URL directe embarquerait stream_key, qui est aussi le secret d'ingestion RTMP —
+    le laisser fuir dans une réponse publique permettrait à quiconque de détourner le live (publier
+    du contenu à la place du propriétaire).
+    """
 
     owner_email = serializers.EmailField(source='owner.email', read_only=True)
-    hls_playback_url = serializers.ReadOnlyField()
+    hls_playback_url = serializers.SerializerMethodField()
     replay = ReplaySerializer(source='replay_video', read_only=True)
+
+    def get_hls_playback_url(self, obj):
+        request = self.context.get('request')
+        path = reverse('live:stream-hls', kwargs={'id': obj.id, 'relpath': 'index.m3u8'})
+        url = request.build_absolute_uri(path) if request else path
+        if obj.visibility == LiveStream.Visibility.PRIVATE:
+            url = f'{url}?token={generate_live_hls_token(obj.id)}'
+        return url
 
     class Meta:
         model = LiveStream

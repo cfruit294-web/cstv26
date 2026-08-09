@@ -207,8 +207,10 @@ MAX_VIDEO_UPLOAD_SIZE_MB = env('MAX_VIDEO_UPLOAD_SIZE_MB', default=2048, cast=in
 
 # --- Live streaming (ingestion RTMP via MediaMTX, cf docker-compose.yml) ---
 RTMP_INGEST_BASE_URL = env('RTMP_INGEST_BASE_URL', default='rtmp://localhost')
-HLS_PLAYBACK_BASE_URL = env('HLS_PLAYBACK_BASE_URL', default='http://localhost/hls')
 RTMP_WEBHOOK_SECRET = env('RTMP_WEBHOOK_SECRET', default='change-me-rtmp-secret')
+# Base interne (réseau Docker) utilisée par LiveHlsProxyView pour relayer le HLS depuis MediaMTX ;
+# jamais exposée au client (voir live/views.py, live/serializers.py get_hls_playback_url).
+MEDIAMTX_HLS_INTERNAL_URL = env('MEDIAMTX_HLS_INTERNAL_URL', default='http://mediamtx:8888')
 # Dossier des enregistrements bruts produits par MediaMTX (volume Docker partagé, jamais servi
 # publiquement) : source des rediffusions automatiques générées par live.tasks.
 LIVE_RECORDINGS_ROOT = env('LIVE_RECORDINGS_ROOT', default=str(BASE_DIR / 'live_recordings'))

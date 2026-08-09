@@ -52,10 +52,6 @@ class LiveStream(BaseModel):
     def rtmp_ingest_url(self) -> str:
         return f'{settings.RTMP_INGEST_BASE_URL}/{self.stream_key}'
 
-    @property
-    def hls_playback_url(self) -> str:
-        return f'{settings.HLS_PLAYBACK_BASE_URL}/{self.stream_key}/index.m3u8'
-
 
 class LiveChatMessage(BaseModel):
     """Message de chat associé à un live (historique persistant, diffusé en temps réel via WebSocket)."""

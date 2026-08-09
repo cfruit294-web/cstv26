@@ -1,5 +1,9 @@
+import hmac
+
+import requests
 from django.conf import settings
 from django.db.models import Q
+from django.http import Http404, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
@@ -20,6 +24,7 @@ from live.serializers import (
     LiveStreamSerializer,
 )
 from live.tasks import create_replay_from_stream
+from live.tokens import verify_live_hls_token
 
 
 def _is_owner_or_admin(user, stream):
@@ -81,7 +86,7 @@ class LiveStreamStartView(APIView):
         stream.status = LiveStream.Status.LIVE
         stream.started_at = timezone.now()
         stream.save(update_fields=['status', 'started_at'])
-        return Response(LiveStreamOwnerSerializer(stream).data)
+        return Response(LiveStreamOwnerSerializer(stream, context={'request': request}).data)
 
 
 class LiveStreamEndView(APIView):
@@ -94,7 +99,7 @@ class LiveStreamEndView(APIView):
         stream.status = LiveStream.Status.ENDED
         stream.ended_at = timezone.now()
         stream.save(update_fields=['status', 'ended_at'])
-        return Response(LiveStreamOwnerSerializer(stream).data)
+        return Response(LiveStreamOwnerSerializer(stream, context={'request': request}).data)
 
 
 class RtmpWebhookView(APIView):
@@ -105,8 +110,8 @@ class RtmpWebhookView(APIView):
 
     @extend_schema(request=None, responses=OpenApiTypes.OBJECT)
     def post(self, request):
-        secret = request.data.get('secret') or request.query_params.get('secret')
-        if secret != settings.RTMP_WEBHOOK_SECRET:
+        secret = request.data.get('secret') or request.query_params.get('secret') or ''
+        if not hmac.compare_digest(secret, settings.RTMP_WEBHOOK_SECRET):
             return Response(status=status.HTTP_403_FORBIDDEN)
 
         stream_key = request.data.get('name') or request.data.get('stream_key') or ''
@@ -128,6 +133,39 @@ class RtmpWebhookView(APIView):
             stream.save(update_fields=['status', 'started_at'])
 
         return Response({'detail': 'ok'})
+
+
+class LiveHlsProxyView(APIView):
+    """Relaie le flux HLS live depuis MediaMTX sans jamais exposer stream_key au client.
+
+    À la différence d'une redirection (qui révélerait stream_key dans l'en-tête Location), on relaie
+    le contenu en flux : le client ne voit que l'URL basée sur l'id public du live.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, id, relpath):
+        stream = get_object_or_404(LiveStream, id=id)
+
+        if stream.visibility == LiveStream.Visibility.PRIVATE:
+            is_owner = request.user.is_authenticated and (stream.owner_id == request.user.id or request.user.is_admin)
+            if not is_owner and not verify_live_hls_token(request.GET.get('token', ''), stream.id):
+                raise Http404
+        elif stream.status == LiveStream.Status.CANCELED:
+            raise Http404
+
+        upstream_url = f'{settings.MEDIAMTX_HLS_INTERNAL_URL}/{stream.stream_key}/{relpath}'
+        try:
+            upstream = requests.get(upstream_url, stream=True, timeout=10)
+        except requests.RequestException:
+            raise Http404
+        if upstream.status_code != 200:
+            raise Http404
+
+        content_type = upstream.headers.get('Content-Type', 'application/octet-stream')
+        response = StreamingHttpResponse(upstream.iter_content(chunk_size=65536), content_type=content_type)
+        response['Cache-Control'] = 'no-cache'
+        return response
 
 
 class LiveChatHistoryView(generics.ListAPIView):

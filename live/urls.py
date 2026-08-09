@@ -11,5 +11,6 @@ urlpatterns = [
     path('streams/<uuid:id>/start/', views.LiveStreamStartView.as_view(), name='stream-start'),
     path('streams/<uuid:id>/end/', views.LiveStreamEndView.as_view(), name='stream-end'),
     path('streams/<uuid:id>/chat/', views.LiveChatHistoryView.as_view(), name='stream-chat'),
+    path('streams/<uuid:id>/hls/<path:relpath>', views.LiveHlsProxyView.as_view(), name='stream-hls'),
     path('webhook/rtmp/', views.RtmpWebhookView.as_view(), name='rtmp-webhook'),
 ]
