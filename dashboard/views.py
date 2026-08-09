@@ -12,9 +12,7 @@ from accounts.permissions import IsAdmin
 from community.models import Post
 from live.models import LiveStream
 from messaging.models import Message
-from orders.models import Order
 from payments.models import Payment
-from products.models import Product
 from subscriptions.models import Subscription
 from videos.models import Video
 
@@ -61,14 +59,6 @@ class DashboardOverviewView(APIView):
             'live': {
                 'total': LiveStream.objects.count(),
                 'currently_live': LiveStream.objects.filter(status=LiveStream.Status.LIVE).count(),
-            },
-            'orders': {
-                'total': Order.objects.count(),
-                'paid': Order.objects.filter(status=Order.Status.PAID).count(),
-            },
-            'products': {
-                'total': Product.objects.count(),
-                'active': Product.objects.filter(is_active=True).count(),
             },
             'community': {
                 'posts': Post.objects.count(),

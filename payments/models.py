@@ -20,9 +20,6 @@ class Payment(BaseModel):
     subscription = models.ForeignKey(
         'subscriptions.Subscription', on_delete=models.SET_NULL, null=True, blank=True, related_name='payments',
     )
-    order = models.ForeignKey(
-        'orders.Order', on_delete=models.SET_NULL, null=True, blank=True, related_name='payments',
-    )
     provider = models.CharField(max_length=20, choices=Provider.choices, default=Provider.CINETPAY)
     transaction_id = models.CharField(max_length=100, unique=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)

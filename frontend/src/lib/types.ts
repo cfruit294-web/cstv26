@@ -99,32 +99,6 @@ export interface LoginResult {
   pre_auth_token?: string;
 }
 
-export type ProductType = "digital" | "physical";
-
-export interface Category {
-  id: string;
-  name: string;
-  slug: string;
-}
-
-export interface Product {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  product_type: ProductType;
-  price: string;
-  currency: string;
-  cover_image: string | null;
-  seller_email: string;
-  category: Category | null;
-  stock_quantity: number | null;
-  is_in_stock: boolean;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export type PaymentStatus = "pending" | "success" | "failed" | "canceled";
 
 export interface Payment {
@@ -138,29 +112,6 @@ export interface Payment {
   description: string;
   created_at: string;
   updated_at: string;
-}
-
-export type OrderStatus = "pending" | "paid" | "canceled" | "refunded";
-
-export interface OrderItem {
-  id: string;
-  product: Product;
-  quantity: number;
-  unit_price: string;
-  // Contrairement aux autres champs decimal, la vue expose subtotal via un @property
-  // (pas un DecimalField DRF) : il est sérialisé en nombre JSON, pas en chaîne.
-  subtotal: number;
-}
-
-export interface Order {
-  id: string;
-  status: OrderStatus;
-  total_amount: string;
-  currency: string;
-  shipping_address: string;
-  paid_at: string | null;
-  items: OrderItem[];
-  created_at: string;
 }
 
 export interface Comment {
@@ -327,14 +278,6 @@ export interface DashboardOverview {
     total: number;
     currently_live: number;
   };
-  orders: {
-    total: number;
-    paid: number;
-  };
-  products: {
-    total: number;
-    active: number;
-  };
   community: {
     posts: number;
   };
@@ -347,7 +290,6 @@ export interface SearchResults {
   query: string;
   movies: Movie[];
   videos: Video[];
-  products: unknown[];
   live_streams: LiveStream[];
   posts: unknown[];
 }

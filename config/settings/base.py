@@ -42,8 +42,6 @@ LOCAL_APPS = [
     'subscriptions',
     'payments',
     'live',
-    'products',
-    'orders',
     'community',
     'messaging',
     'dashboard',

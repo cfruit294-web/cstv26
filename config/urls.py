@@ -13,7 +13,6 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from accounts.permissions import IsAdmin
 from cms.sitemaps import PageSitemap
 from cms.views import robots_txt
-from orders.views import ProtectedProductFileView
 from videos.views import ProtectedHlsFileView
 
 # Doc/schéma API réservés aux administrateurs : SessionAuthentication permet à un admin
@@ -41,8 +40,6 @@ urlpatterns = [
     path('api/v1/subscriptions/', include('subscriptions.urls')),
     path('api/v1/payments/', include('payments.urls')),
     path('api/v1/live/', include('live.urls')),
-    path('api/v1/products/', include('products.urls')),
-    path('api/v1/orders/', include('orders.urls')),
     path('api/v1/community/', include('community.urls')),
     path('api/v1/messaging/', include('messaging.urls')),
     path('api/v1/dashboard/', include('dashboard.urls')),
@@ -58,21 +55,19 @@ urlpatterns = [
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema', **_admin_only_docs), name='swagger-ui'),
 
     # Fichiers media protégés : jamais servis statiquement (par nginx ou Django), toujours
-    # vérifiés via un token signé temporaire. Voir core/media_access.py, videos/tokens.py,
-    # orders/tokens.py. Le préfixe /media/... est conservé pour rester compatible avec les URLs
-    # déjà renvoyées par les FileField/serializers ; seule la route est interceptée différemment
-    # (par nginx en prod via proxy_pass, ici directement par Django).
+    # vérifiés via un token signé temporaire. Voir core/media_access.py, videos/tokens.py.
+    # Le préfixe /media/... est conservé pour rester compatible avec les URLs déjà renvoyées
+    # par les FileField/serializers ; seule la route est interceptée différemment (par nginx
+    # en prod via proxy_pass, ici directement par Django).
     path('media/hls/<uuid:video_id>/<path:relpath>', ProtectedHlsFileView.as_view(), name='protected-hls'),
-    path('media/products/files/<path:filename>', ProtectedProductFileView.as_view(), name='protected-product-file'),
 ]
 
 if settings.DEBUG:
-    # Uniquement les sous-dossiers non sensibles (avatars, couvertures produits, images
-    # communautaires, miniatures vidéo) : le reste de MEDIA_ROOT (vidéos sources, HLS, fichiers
-    # numériques payants) ne doit JAMAIS être servi directement, ni en dev ni en prod.
+    # Uniquement les sous-dossiers non sensibles (avatars, images communautaires, miniatures
+    # vidéo) : le reste de MEDIA_ROOT (vidéos sources, HLS, fichiers numériques payants) ne doit
+    # JAMAIS être servi directement, ni en dev ni en prod.
     for _public_prefix, _public_dir in (
         ('avatars/', 'avatars'),
-        ('products/covers/', 'products/covers'),
         ('community/posts/', 'community/posts'),
         ('videos/thumbnails/', 'videos/thumbnails'),
     ):

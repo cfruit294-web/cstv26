@@ -103,16 +103,6 @@ export default function DashboardPage() {
           value={numberFormat.format(data.live.currently_live)}
           sublabel={`${numberFormat.format(data.live.total)} au total`}
         />
-        <StatTile
-          label="Commandes payées"
-          value={numberFormat.format(data.orders.paid)}
-          sublabel={`${numberFormat.format(data.orders.total)} au total`}
-        />
-        <StatTile
-          label="Produits actifs"
-          value={numberFormat.format(data.products.active)}
-          sublabel={`${numberFormat.format(data.products.total)} au total`}
-        />
         <StatTile label="Posts communauté" value={numberFormat.format(data.community.posts)} />
         <StatTile label="Messages échangés" value={numberFormat.format(data.messaging.messages)} />
       </div>

@@ -7,8 +7,6 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from orders import services as order_services
-from orders.models import Order
 from payments import services
 from payments.models import Payment
 from payments.serializers import PaymentSerializer
@@ -91,8 +89,6 @@ class CinetPayNotifyView(APIView):
             payment.status = Payment.Status.SUCCESS
             if payment.subscription:
                 subscription_services.activate_subscription(payment.subscription)
-            if payment.order and payment.order.status == Order.Status.PENDING:
-                order_services.mark_order_paid(payment.order)
         elif cinetpay_status == 'REFUSED':
             payment.status = Payment.Status.FAILED
 

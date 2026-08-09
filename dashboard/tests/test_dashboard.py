@@ -26,7 +26,7 @@ class DashboardOverviewTests(APITestCase):
         self.client.force_authenticate(user=self.admin)
         response = self.client.get(reverse('dashboard:overview'))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        for section in ('users', 'subscriptions', 'revenue', 'videos', 'live', 'orders', 'products', 'community', 'messaging'):
+        for section in ('users', 'subscriptions', 'revenue', 'videos', 'live', 'community', 'messaging'):
             self.assertIn(section, response.data)
 
     def test_user_counts_reflect_database_state(self):

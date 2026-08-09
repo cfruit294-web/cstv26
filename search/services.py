@@ -6,7 +6,6 @@ de chaque app), volontairement simple : pas d'exposition de contenu privé via l
 from catalog.models import Movie
 from community.models import Post
 from live.models import LiveStream
-from products.models import Product
 from videos.models import Video
 
 RESULTS_PER_TYPE = 10
@@ -15,14 +14,13 @@ RESULTS_PER_TYPE = 10
 def global_search(query):
     query = (query or '').strip()
     if not query:
-        return {'movies': [], 'videos': [], 'products': [], 'live_streams': [], 'posts': []}
+        return {'movies': [], 'videos': [], 'live_streams': [], 'posts': []}
 
     return {
         'movies': list(Movie.objects.filter(title__icontains=query)[:RESULTS_PER_TYPE]),
         'videos': list(Video.objects.filter(
             status=Video.Status.READY, visibility=Video.Visibility.PUBLIC, title__icontains=query,
         )[:RESULTS_PER_TYPE]),
-        'products': list(Product.objects.filter(is_active=True, name__icontains=query)[:RESULTS_PER_TYPE]),
         'live_streams': list(
             LiveStream.objects.filter(visibility=LiveStream.Visibility.PUBLIC, title__icontains=query)
             .exclude(status=LiveStream.Status.CANCELED)[:RESULTS_PER_TYPE]

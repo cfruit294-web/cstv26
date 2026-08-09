@@ -7,13 +7,12 @@ from rest_framework.views import APIView
 from catalog.serializers import MovieSerializer
 from community.serializers import PostSerializer
 from live.serializers import LiveStreamSerializer
-from products.serializers import ProductSerializer
 from search import services
 from videos.serializers import VideoSerializer
 
 
 class GlobalSearchView(APIView):
-    """Recherche globale (contenu public uniquement) sur films/vidéos/produits/lives/publications."""
+    """Recherche globale (contenu public uniquement) sur films/vidéos/lives/publications."""
 
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -31,7 +30,6 @@ class GlobalSearchView(APIView):
             'query': query,
             'movies': MovieSerializer(results['movies'], many=True, context=context).data,
             'videos': VideoSerializer(results['videos'], many=True, context=context).data,
-            'products': ProductSerializer(results['products'], many=True, context=context).data,
             'live_streams': LiveStreamSerializer(results['live_streams'], many=True, context=context).data,
             'posts': PostSerializer(results['posts'], many=True, context=context).data,
         })

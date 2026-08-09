@@ -2,7 +2,6 @@ import { API_BASE_URL } from "@/lib/config";
 import type {
   AppNotification,
   AuthTokens,
-  Category,
   CmsPage,
   Comment,
   Conversation,
@@ -11,13 +10,11 @@ import type {
   LoginResult,
   Message,
   Movie,
-  Order,
   Paginated,
   PageType,
   Payment,
   Plan,
   Post,
-  Product,
   SearchResults,
   Subscription,
   User,
@@ -128,57 +125,6 @@ export function getLiveStream(id: string, token?: string) {
 
 export function getDashboardOverview(token: string) {
   return request<DashboardOverview>("/api/v1/dashboard/overview/", { token });
-}
-
-// ---- Boutique ----
-
-export function getCategories() {
-  return request<Paginated<Category>>("/api/v1/products/categories/");
-}
-
-export function getProducts(
-  params: { category?: string; type?: "digital" | "physical"; q?: string; page?: number } = {},
-) {
-  const search = new URLSearchParams();
-  if (params.category) search.set("category", params.category);
-  if (params.type) search.set("type", params.type);
-  if (params.q) search.set("q", params.q);
-  if (params.page) search.set("page", String(params.page));
-  const qs = search.toString();
-  return request<Paginated<Product>>(`/api/v1/products/${qs ? `?${qs}` : ""}`);
-}
-
-export function getProduct(id: string) {
-  return request<Product>(`/api/v1/products/${id}/`);
-}
-
-// ---- Commandes ----
-
-export function createOrder(
-  payload: { items: { product_id: string; quantity: number }[]; shipping_address?: string },
-  token: string,
-) {
-  return request<Order>("/api/v1/orders/create/", {
-    method: "POST",
-    body: JSON.stringify(payload),
-    token,
-  });
-}
-
-export function getOrders(token: string) {
-  return request<Paginated<Order>>("/api/v1/orders/", { token });
-}
-
-export function getOrder(id: string, token: string) {
-  return request<Order>(`/api/v1/orders/${id}/`, { token });
-}
-
-export function checkoutOrder(id: string, token: string) {
-  return request<Payment>(`/api/v1/orders/${id}/checkout/`, { method: "POST", token });
-}
-
-export function getOrderDownload(orderId: string, productId: string, token: string) {
-  return request<{ download_url: string }>(`/api/v1/orders/${orderId}/download/${productId}/`, { token });
 }
 
 // ---- Communauté ----

@@ -6,7 +6,6 @@ from accounts.models import User
 from catalog.models import Movie
 from community.models import Post
 from live.models import LiveStream
-from products.models import Product
 from videos.models import Video
 
 
@@ -15,10 +14,6 @@ class GlobalSearchTests(APITestCase):
         self.owner = User.objects.create_user(email='owner@example.com', password='S3curePass!23')
 
         Movie.objects.create(imdb_id='tt0001', title='Star Wars Origins', year='2020')
-        Product.objects.create(
-            seller=self.owner, name='Star Wars Poster', slug='star-wars-poster',
-            product_type=Product.ProductType.DIGITAL, price='5.00', is_active=True,
-        )
         Post.objects.create(author=self.owner, content='J\'adore Star Wars')
 
         self.public_ready_video = Video.objects.create(
@@ -43,7 +38,6 @@ class GlobalSearchTests(APITestCase):
     def test_search_returns_results_across_all_types(self):
         response = self.client.get(reverse('search:global-search'), {'q': 'Star Wars'})
         self.assertEqual(len(response.data['movies']), 1)
-        self.assertEqual(len(response.data['products']), 1)
         self.assertEqual(len(response.data['posts']), 1)
         self.assertEqual(len(response.data['videos']), 1)
         self.assertEqual(len(response.data['live_streams']), 1)
@@ -63,4 +57,3 @@ class GlobalSearchTests(APITestCase):
     def test_search_no_match_returns_empty_lists(self):
         response = self.client.get(reverse('search:global-search'), {'q': 'nonexistent-term-xyz'})
         self.assertEqual(response.data['movies'], [])
-        self.assertEqual(response.data['products'], [])

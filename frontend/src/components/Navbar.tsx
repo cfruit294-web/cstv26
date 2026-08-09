@@ -4,13 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useCart } from "@/context/CartContext";
 import Dropdown from "@/components/Dropdown";
 import NotificationBell from "@/components/NotificationBell";
 
 const PRIMARY_LINKS = [
   { href: "/", label: "Accueil" },
-  { href: "/shop", label: "Boutique" },
   { href: "/subscriptions", label: "Abonnements" },
 ];
 
@@ -31,7 +29,6 @@ function DropdownLink({ href, children }: { href: string; children: React.ReactN
 
 export default function Navbar() {
   const { user, isLoading, logout } = useAuth();
-  const { count } = useCart();
   const router = useRouter();
   const pathname = usePathname();
   const [query, setQuery] = useState("");
@@ -108,23 +105,6 @@ export default function Navbar() {
         </form>
 
         <nav className="ml-auto flex shrink-0 items-center gap-2 text-sm">
-          <Link
-            href="/cart"
-            aria-label="Panier"
-            className="relative rounded-full p-2 text-foreground transition hover:text-accent"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
-              <circle cx="9" cy="21" r="1" />
-              <circle cx="20" cy="21" r="1" />
-              <path d="M1 1h4l2.6 13.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 2-1.6L23 6H6" />
-            </svg>
-            {count > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white">
-                {count}
-              </span>
-            )}
-          </Link>
-
           {isLoading ? null : user ? (
             <>
               <Link href="/messages" aria-label="Messages" className="rounded-full p-2 text-foreground transition hover:text-accent">
@@ -136,7 +116,6 @@ export default function Navbar() {
               <NotificationBell />
 
               <Dropdown align="right" trigger={<span className="max-w-32 truncate">{user.full_name || user.email}</span>}>
-                <DropdownLink href="/orders">Mes commandes</DropdownLink>
                 <DropdownLink href="/subscriptions/me">Mon abonnement</DropdownLink>
                 {user.role === "admin" && <DropdownLink href="/dashboard">Tableau de bord</DropdownLink>}
                 <button
