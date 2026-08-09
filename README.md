@@ -1,22 +1,33 @@
 # CSTV
 
-Plateforme de streaming vidéo (Django + DRF + PostgreSQL + Redis + Celery).
+Plateforme de streaming vidéo, entièrement gratuite (Django + DRF + PostgreSQL + Redis + Celery pour l'API, Next.js pour le frontend).
 
-Développement module par module. **Modules livrés :**
+**Modules backend livrés :**
 - `core` + `accounts` — authentification complète (inscription, vérification email, login JWT, refresh avec rotation/blacklist, logout, reset password, 2FA TOTP, gestion des sessions/appareils, rôles)
-- `catalog` — métadonnées films/séries importées depuis l'API OMDb
-- `videos` — upload vidéo, transcodage HLS multi-résolution (1080p/720p/480p/360p) via FFmpeg + Celery, miniature automatique
-- `subscriptions` — formules d'abonnement (Basic/Premium/VIP/Entreprise), essai gratuit, cycle de facturation
-- `payments` — paiement CinetPay (Orange Money, MTN, Wave, cartes locales), webhook de confirmation
+- `catalog` — métadonnées films/séries. Peuplé soit par import OMDb (`movies/import/`), soit **entièrement à la main depuis l'admin** (voir « Ajouter un film manuellement » ci-dessous) — les deux se combinent, aucun des deux n'est obligatoire.
+- `videos` — upload vidéo (via l'admin ou l'API), transcodage HLS multi-résolution (1080p/720p/480p/360p) via FFmpeg + Celery, miniature automatique, sous-titres WebVTT (FR/EN)
 - `live` — planification de lives, clé de stream, webhook RTMP (ingestion externe), chat temps réel (Django Channels/WebSocket)
-- `products` — boutique (produits numériques et physiques, catégories, gestion du vendeur)
-- `orders` — commandes, paiement CinetPay lié, gestion du stock, téléchargement digital gated
+- `watchparty` — visionnage synchronisé entre amis (hôte/modérateurs/membres, chat, lecture synchronisée en WebSocket)
+- `library` — « Ma liste » (watchlist) et historique de visionnage (reprise automatique de lecture)
+- `ads` — publicités pre-roll (vidéo ou image) gérées depuis l'admin, diffusées avant la lecture d'un film
 - `community` — publications, commentaires, likes
 - `messaging` — conversations privées, messages temps réel (WebSocket), indicateur de saisie, présence
-- `dashboard` — statistiques agrégées (utilisateurs, revenus, contenu) réservées aux admins
-- `notifications` — notifications in-app persistées + push temps réel (WebSocket), intégrées à `community` (commentaire) et `orders` (commande payée)
-- `search` — recherche globale (contenu public) à travers films, vidéos, produits, lives, publications
+- `dashboard` — statistiques agrégées (utilisateurs, contenu) réservées aux admins
+- `notifications` — notifications in-app persistées + push temps réel (WebSocket)
+- `search` — recherche globale (contenu public) à travers films, vidéos, lives, publications
 - `cms` — pages éditoriales (landing, blog, FAQ, mentions légales/CGU), `sitemap.xml`, `robots.txt`
+
+**Frontend :** `frontend/` — Next.js (App Router, TypeScript, Tailwind), consomme l'API ci-dessus. Voir `frontend/README.md`.
+
+## Ajouter un film manuellement (sans OMDb)
+
+Le catalogue n'a pas besoin de l'API OMDb pour fonctionner. Depuis `/admin/` :
+
+1. **Catalog → Movies → Add** : renseigne le titre, l'année, le genre, les acteurs, etc. `imdb_id` doit juste être une valeur unique (ex. `local-001`) — ce n'est pas vérifié contre une vraie base IMDb.
+2. **Videos → Videos → Add** : sélectionne le film créé à l'étape 1 dans le champ `movie`, choisis un propriétaire (`owner`), une visibilité, et uploade le fichier `.mp4` dans `source_file`. Le transcodage HLS se lance automatiquement à l'enregistrement (que ce soit un ajout ou un remplacement du fichier) — inutile de passer par l'API.
+3. Optionnel : ajoute des sous-titres `.vtt` (FR/EN) directement en inline sur la fiche vidéo.
+
+Le film apparaît ensuite dans le catalogue public dès que la vidéo passe au statut `ready` (transcodage terminé).
 
 ## Démarrage rapide (développement local, sans Docker)
 
@@ -52,7 +63,7 @@ docker compose up --build
 
 Services : `web` (Daphne, sert HTTP + WebSocket), `db` (PostgreSQL), `redis`, `celery_worker`, `celery_beat`, `nginx`.
 
-> Non testé dans cet environnement (Docker non installé ici) — à valider sur une machine avec Docker avant déploiement.
+> Configuration validée (`docker compose config`, build des images), mais un `docker compose up` complet de bout en bout n'a pas été exécuté dans cet environnement — à valider avant déploiement.
 
 ### Live streaming : ce qui est inclus / pas inclus
 
@@ -87,6 +98,7 @@ Ce module gère la **planification, l'authentification RTMP (clé de stream) et 
 | POST | `/api/v1/catalog/movies/import/` | Importe/MAJ une fiche (`imdb_id` ou `title`) | admin/modérateur/créateur |
 | GET | `/api/v1/catalog/movies/` | Parcourt le catalogue local (`?q=` filtre le titre) | Authentifié |
 | GET | `/api/v1/catalog/movies/<id>/` | Détail d'une fiche | Authentifié |
+| GET | `/api/v1/catalog/movies/<id>/recommendations/` | Films similaires (genre/acteurs partagés) | Public |
 
 ## Endpoints `videos` disponibles
 
@@ -97,28 +109,24 @@ Ce module gère la **planification, l'authentification RTMP (clé de stream) et 
 | GET | `/api/v1/videos/<id>/` | Détail (propriétaire/admin : tout ; autres : public + prêt uniquement) | Authentifié |
 | DELETE | `/api/v1/videos/<id>/` | Suppression (propriétaire/admin uniquement) | Authentifié |
 | POST | `/api/v1/videos/<id>/retry/` | Relance le traitement (ex. après échec) | Propriétaire/admin |
+| POST | `/api/v1/videos/<id>/subtitles/` | Ajoute une piste de sous-titres `.vtt` (fr/en) | Propriétaire/admin |
+| DELETE | `/api/v1/videos/subtitles/<id>/` | Supprime une piste de sous-titres | Propriétaire/admin |
 
-## Endpoints `subscriptions` disponibles
-
-| Méthode | URL | Description | Accès |
-|---|---|---|---|
-| GET | `/api/v1/subscriptions/plans/` | Catalogue public des formules actives | Public |
-| GET/POST | `/api/v1/subscriptions/plans/admin/` | Gestion des formules | Admin |
-| GET/PATCH/DELETE | `/api/v1/subscriptions/plans/admin/<id>/` | Détail/édition d'une formule | Admin |
-| POST | `/api/v1/subscriptions/subscribe/` | Souscrit à une formule (`plan_id`) | Authentifié |
-| GET | `/api/v1/subscriptions/me/` | Abonnement courant | Authentifié |
-| POST | `/api/v1/subscriptions/cancel/` | Annule le renouvellement automatique | Authentifié |
-
-## Endpoints `payments` disponibles
+## Endpoints `library` disponibles
 
 | Méthode | URL | Description | Accès |
 |---|---|---|---|
-| POST | `/api/v1/payments/checkout/` | Initie le paiement CinetPay de l'abonnement en attente | Authentifié |
-| POST | `/api/v1/payments/cinetpay/notify/` | Callback serveur-à-serveur CinetPay | Public (CinetPay) |
-| GET | `/api/v1/payments/` | Historique de paiements | Authentifié (les siens ; admin : tous) |
-| GET | `/api/v1/payments/<id>/` | Détail d'un paiement | Propriétaire/admin |
+| GET | `/api/v1/library/watchlist/` | Films dans « Ma liste » | Authentifié |
+| POST | `/api/v1/library/watchlist/toggle/` | Ajoute/retire un film (`movie_id`) | Authentifié |
+| GET | `/api/v1/library/watchlist/status/<movie_id>/` | Le film est-il dans la liste ? | Authentifié |
+| POST | `/api/v1/library/history/` | Sauvegarde la position de lecture (`video`, `position_seconds`) | Authentifié |
+| GET | `/api/v1/library/history/<video_id>/` | Position sauvegardée (0 si aucune) | Authentifié |
 
-> `CINETPAY_API_KEY`/`CINETPAY_SITE_ID` sont vides par défaut — `checkout` renvoie une 502 explicite tant qu'ils ne sont pas renseignés dans `.env`. Aucune clé CinetPay réelle n'a été fournie pour ce module ; l'intégration est testée avec l'API mockée.
+## Endpoints `ads` disponibles
+
+| Méthode | URL | Description | Accès |
+|---|---|---|---|
+| GET | `/api/v1/ads/next/?placement=pre_roll` | Publicité active au hasard pour l'emplacement (204 si aucune) | Public |
 
 ## Endpoints `live` disponibles
 
@@ -133,27 +141,19 @@ Ce module gère la **planification, l'authentification RTMP (clé de stream) et 
 | POST | `/api/v1/live/webhook/rtmp/` | Callback du serveur média RTMP externe | Public (secret partagé) |
 | WS | `/ws/live/<id>/chat/?token=<access_jwt>` | Chat temps réel (JWT en query string) | Authentifié (accès public/propriétaire/admin) |
 
-## Endpoints `products` disponibles
+## Endpoints `watchparty` disponibles
 
 | Méthode | URL | Description | Accès |
 |---|---|---|---|
-| GET | `/api/v1/products/categories/` | Liste des catégories | Public |
-| GET/POST | `/api/v1/products/categories/admin/` | Gestion des catégories | Admin |
-| GET | `/api/v1/products/` | Catalogue public (`?category=`, `?type=`, `?q=`) | Public |
-| GET | `/api/v1/products/mine/` | Ses propres produits (actifs et inactifs) | admin/créateur/entreprise |
-| POST | `/api/v1/products/create/` | Crée un produit | admin/créateur/entreprise |
-| GET | `/api/v1/products/<id>/` | Détail public | Public |
-| GET/PATCH/DELETE | `/api/v1/products/<id>/manage/` | Édition/suppression | Propriétaire/admin |
-
-## Endpoints `orders` disponibles
-
-| Méthode | URL | Description | Accès |
-|---|---|---|---|
-| POST | `/api/v1/orders/create/` | Crée une commande (`items: [{product_id, quantity}]`) | Authentifié |
-| GET | `/api/v1/orders/` | Historique de commandes | Authentifié (les siennes ; admin : toutes) |
-| GET | `/api/v1/orders/<id>/` | Détail d'une commande | Propriétaire/admin |
-| POST | `/api/v1/orders/<id>/checkout/` | Initie le paiement CinetPay de la commande | Propriétaire |
-| GET | `/api/v1/orders/<id>/download/<product_id>/` | URL de téléchargement (commande payée uniquement) | Propriétaire |
+| GET | `/api/v1/watchparty/suggestions/` | Vidéos suggérées pour créer une session | Authentifié |
+| GET/POST | `/api/v1/watchparty/parties/` | Liste ses sessions / en crée une | Authentifié |
+| GET | `/api/v1/watchparty/parties/<id>/` | Détail d'une session | Membre/hôte/admin |
+| POST | `/api/v1/watchparty/parties/<id>/join/` | Rejoindre (en attente de validation selon le mode) | Authentifié |
+| POST | `/api/v1/watchparty/parties/<id>/start/` \| `/end/` \| `/cancel/` | Contrôle du cycle de vie | Hôte/modérateur |
+| GET | `/api/v1/watchparty/parties/<id>/chat/` | Historique du chat | Membre |
+| GET | `/api/v1/watchparty/parties/<id>/members/` | Liste des membres | Membre |
+| POST | `.../members/<id>/accept/` \| `/reject/` \| `/promote/` | Gestion des membres | Hôte/modérateur |
+| WS | `/ws/watchparty/<id>/?token=<access_jwt>` | Lecture synchronisée + chat temps réel | Membre |
 
 ## Endpoints `community` disponibles
 
@@ -178,7 +178,7 @@ Ce module gère la **planification, l'authentification RTMP (clé de stream) et 
 
 | Méthode | URL | Description | Accès |
 |---|---|---|---|
-| GET | `/api/v1/dashboard/overview/` | Statistiques agrégées (utilisateurs, revenus, contenu) | Admin |
+| GET | `/api/v1/dashboard/overview/` | Statistiques agrégées (utilisateurs, contenu) | Admin |
 
 ## Endpoints `notifications` disponibles
 
@@ -194,7 +194,7 @@ Ce module gère la **planification, l'authentification RTMP (clé de stream) et 
 
 | Méthode | URL | Description | Accès |
 |---|---|---|---|
-| GET | `/api/v1/search/?q=...` | Recherche globale (films, vidéos, produits, lives, publications — contenu public uniquement) | Public |
+| GET | `/api/v1/search/?q=...` | Recherche globale (films, vidéos, lives, publications — contenu public uniquement) | Public |
 
 ## Endpoints `cms` disponibles
 
