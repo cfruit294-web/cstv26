@@ -9,14 +9,11 @@ import NotificationBell from "@/components/NotificationBell";
 
 const PRIMARY_LINKS = [
   { href: "/", label: "Accueil" },
-  { href: "/subscriptions", label: "Abonnements" },
-];
-
-const DISCOVER_LINKS = [
   { href: "/movies", label: "Films" },
   { href: "/series", label: "Séries" },
   { href: "/top", label: "Les mieux notés" },
   { href: "/programme", label: "Programme" },
+  { href: "/subscriptions", label: "Abonnements" },
 ];
 
 function DropdownLink({ href, children }: { href: string; children: React.ReactNode }) {
@@ -40,7 +37,6 @@ export default function Navbar() {
   }
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
-  const discoverActive = DISCOVER_LINKS.some((link) => isActive(link.href));
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/5 bg-background/90 backdrop-blur">
@@ -62,13 +58,13 @@ export default function Navbar() {
             </Link>
           ))}
 
-          <Dropdown trigger={<span className={discoverActive ? "text-white" : ""}>Découvrir</span>}>
-            {DISCOVER_LINKS.map((link) => (
-              <DropdownLink key={link.href} href={link.href}>
-                {link.label}
-              </DropdownLink>
-            ))}
-          </Dropdown>
+          <Link
+            href="/live"
+            className="flex shrink-0 items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-accent-hover"
+          >
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+            Live
+          </Link>
 
           {user && (
             <Link
