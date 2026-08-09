@@ -28,10 +28,10 @@ class NotificationConsumerTests(TransactionTestCase):
 
         from channels.db import database_sync_to_async
 
-        await database_sync_to_async(notify)(self.user, 'Nouvelle commande', body='Détails', category='order')
+        await database_sync_to_async(notify)(self.user, 'Nouveau message', body='Détails', category='system')
 
         event = await communicator.receive_json_from()
-        self.assertEqual(event['title'], 'Nouvelle commande')
-        self.assertEqual(event['category'], 'order')
+        self.assertEqual(event['title'], 'Nouveau message')
+        self.assertEqual(event['category'], 'system')
 
         await communicator.disconnect()

@@ -53,7 +53,7 @@ class LiveStreamListView(generics.ListAPIView):
 
 
 class LiveStreamDetailView(generics.RetrieveAPIView):
-    """Publique : CanAccessLiveStream filtre déjà les lives privés/premium pour les non-propriétaires."""
+    """Publique : CanAccessLiveStream filtre déjà les lives privés pour les non-propriétaires."""
 
     queryset = LiveStream.objects.all()
     lookup_field = 'id'

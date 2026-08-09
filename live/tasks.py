@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 _VISIBILITY_MAP = {
     LiveStream.Visibility.PUBLIC: Video.Visibility.PUBLIC,
     LiveStream.Visibility.PRIVATE: Video.Visibility.PRIVATE,
-    LiveStream.Visibility.PREMIUM: Video.Visibility.PREMIUM,
 }
 
 

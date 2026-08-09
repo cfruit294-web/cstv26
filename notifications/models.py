@@ -8,8 +8,6 @@ class Notification(BaseModel):
     class Category(models.TextChoices):
         INFO = 'info', 'Information'
         COMMENT = 'comment', 'Commentaire'
-        ORDER = 'order', 'Commande'
-        PAYMENT = 'payment', 'Paiement'
         LIVE = 'live', 'Live'
         MESSAGE = 'message', 'Message'
         SYSTEM = 'system', 'Système'

@@ -13,7 +13,6 @@ const PRIMARY_LINKS = [
   { href: "/series", label: "Séries" },
   { href: "/top", label: "Les mieux notés" },
   { href: "/programme", label: "Programme" },
-  { href: "/subscriptions", label: "Abonnements" },
 ];
 
 function DropdownLink({ href, children }: { href: string; children: React.ReactNode }) {
@@ -112,7 +111,7 @@ export default function Navbar() {
               <NotificationBell />
 
               <Dropdown align="right" trigger={<span className="max-w-32 truncate">{user.full_name || user.email}</span>}>
-                <DropdownLink href="/subscriptions/me">Mon abonnement</DropdownLink>
+                <DropdownLink href="/watchlist">Ma liste</DropdownLink>
                 {user.role === "admin" && <DropdownLink href="/dashboard">Tableau de bord</DropdownLink>}
                 <button
                   type="button"

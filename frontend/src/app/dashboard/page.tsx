@@ -10,11 +10,6 @@ import StatTile from "@/components/StatTile";
 
 const numberFormat = new Intl.NumberFormat("fr-FR");
 
-function formatAmount(value: string) {
-  const n = Number(value);
-  return `${numberFormat.format(Number.isFinite(n) ? n : 0)} XOF`;
-}
-
 export default function DashboardPage() {
   const { user, isLoading: authLoading, getValidAccessToken } = useAuth();
   const [data, setData] = useState<DashboardOverview | null>(null);
@@ -78,20 +73,6 @@ export default function DashboardPage() {
           label="Utilisateurs"
           value={numberFormat.format(data.users.total)}
           sublabel={`dont ${numberFormat.format(data.users.new_last_30_days)} sur les 30 derniers jours`}
-        />
-        <StatTile
-          label="Abonnements actifs"
-          value={numberFormat.format(data.subscriptions.active)}
-          sublabel={`${numberFormat.format(data.subscriptions.total)} au total`}
-        />
-        <StatTile
-          label="Revenu total"
-          value={formatAmount(data.revenue.total)}
-          sublabel={`${formatAmount(data.revenue.last_30_days)} sur les 30 derniers jours`}
-        />
-        <StatTile
-          label="Paiements réussis"
-          value={numberFormat.format(data.revenue.successful_payments)}
         />
         <StatTile
           label="Vidéos"

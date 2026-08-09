@@ -37,8 +37,6 @@ urlpatterns = [
     path('api/v1/accounts/', include('accounts.urls')),
     path('api/v1/catalog/', include('catalog.urls')),
     path('api/v1/videos/', include('videos.urls')),
-    path('api/v1/subscriptions/', include('subscriptions.urls')),
-    path('api/v1/payments/', include('payments.urls')),
     path('api/v1/live/', include('live.urls')),
     path('api/v1/community/', include('community.urls')),
     path('api/v1/messaging/', include('messaging.urls')),
@@ -47,6 +45,8 @@ urlpatterns = [
     path('api/v1/search/', include('search.urls')),
     path('api/v1/cms/', include('cms.urls')),
     path('api/v1/watchparty/', include('watchparty.urls')),
+    path('api/v1/library/', include('library.urls')),
+    path('api/v1/ads/', include('ads.urls')),
 
     path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='sitemap'),
     path('robots.txt', robots_txt, name='robots-txt'),
@@ -69,12 +69,14 @@ urlpatterns = [
 
 if settings.DEBUG:
     # Uniquement les sous-dossiers non sensibles (avatars, images communautaires, miniatures
-    # vidéo) : le reste de MEDIA_ROOT (vidéos sources, HLS, fichiers numériques payants) ne doit
-    # JAMAIS être servi directement, ni en dev ni en prod.
+    # vidéo, publicités) : le reste de MEDIA_ROOT (vidéos sources, HLS) ne doit JAMAIS être
+    # servi directement, ni en dev ni en prod.
     for _public_prefix, _public_dir in (
         ('avatars/', 'avatars'),
         ('community/posts/', 'community/posts'),
         ('videos/thumbnails/', 'videos/thumbnails'),
+        ('ads/videos/', 'ads/videos'),
+        ('ads/images/', 'ads/images'),
     ):
         urlpatterns += static(
             settings.MEDIA_URL + _public_prefix,

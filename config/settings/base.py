@@ -5,7 +5,6 @@ Les valeurs sensibles ou dépendantes de l'environnement viennent du fichier .en
 from datetime import timedelta
 from pathlib import Path
 
-from celery.schedules import crontab
 from decouple import Csv, config as env
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -39,8 +38,6 @@ LOCAL_APPS = [
     'accounts',
     'catalog',
     'videos',
-    'subscriptions',
-    'payments',
     'live',
     'community',
     'messaging',
@@ -49,6 +46,8 @@ LOCAL_APPS = [
     'search',
     'cms',
     'watchparty',
+    'library',
+    'ads',
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -178,12 +177,7 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
-CELERY_BEAT_SCHEDULE = {
-    'expire-subscriptions': {
-        'task': 'subscriptions.tasks.expire_subscriptions',
-        'schedule': crontab(minute=0),
-    },
-}
+CELERY_BEAT_SCHEDULE = {}
 
 # --- Email ---
 EMAIL_BACKEND = env('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
@@ -210,11 +204,6 @@ FFMPEG_BINARY = env('FFMPEG_BINARY', default='ffmpeg')
 FFPROBE_BINARY = env('FFPROBE_BINARY', default='ffprobe')
 MAX_VIDEO_UPLOAD_SIZE_MB = env('MAX_VIDEO_UPLOAD_SIZE_MB', default=2048, cast=int)
 
-# --- Paiements CinetPay (Afrique : Orange Money, MTN, Wave, cartes locales) ---
-CINETPAY_API_KEY = env('CINETPAY_API_KEY', default='')
-CINETPAY_SITE_ID = env('CINETPAY_SITE_ID', default='')
-CINETPAY_INIT_URL = env('CINETPAY_INIT_URL', default='https://api-checkout.cinetpay.com/v2/payment')
-CINETPAY_CHECK_URL = env('CINETPAY_CHECK_URL', default='https://api-checkout.cinetpay.com/v2/payment/check')
 
 # --- Live streaming (ingestion RTMP via MediaMTX, cf docker-compose.yml) ---
 RTMP_INGEST_BASE_URL = env('RTMP_INGEST_BASE_URL', default='rtmp://localhost')

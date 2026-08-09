@@ -27,7 +27,6 @@ class Video(BaseModel):
     class Visibility(models.TextChoices):
         PUBLIC = 'public', 'Public'
         PRIVATE = 'private', 'Privé'
-        PREMIUM = 'premium', 'Premium'
 
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='videos')
     movie = models.ForeignKey(
