@@ -3,7 +3,21 @@
 import Hls from "hls.js";
 import { useEffect, useRef, useState } from "react";
 
-export default function VideoPlayer({ src, poster }: { src: string; poster?: string | null }) {
+export interface VideoPlayerSubtitle {
+  language: string;
+  label: string;
+  url: string;
+}
+
+export default function VideoPlayer({
+  src,
+  poster,
+  subtitles,
+}: {
+  src: string;
+  poster?: string | null;
+  subtitles?: VideoPlayerSubtitle[];
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +54,17 @@ export default function VideoPlayer({ src, poster }: { src: string; poster?: str
         controls
         poster={poster ?? undefined}
         className="aspect-video w-full"
-      />
+      >
+        {subtitles?.map((subtitle) => (
+          <track
+            key={subtitle.language}
+            kind="subtitles"
+            srcLang={subtitle.language}
+            label={subtitle.label}
+            src={subtitle.url}
+          />
+        ))}
+      </video>
       {error && <p className="p-3 text-sm text-accent">{error}</p>}
     </div>
   );

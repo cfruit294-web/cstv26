@@ -15,9 +15,9 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsContentManager
 from core.media_access import resolve_within, serve_protected_media
-from videos.models import Video
-from videos.permissions import CanAccessVideo
-from videos.serializers import VideoSerializer, VideoUploadSerializer
+from videos.models import Subtitle, Video
+from videos.permissions import CanAccessVideo, CanManageSubtitle
+from videos.serializers import SubtitleUploadSerializer, VideoSerializer, VideoUploadSerializer
 from videos.tasks import process_video
 from videos.tokens import verify_hls_token
 
@@ -74,6 +74,43 @@ class VideoRetryView(APIView):
         video.save(update_fields=['status', 'error_message'])
         process_video.delay(str(video.id))
         return Response({'detail': 'Traitement relancé.'}, status=status.HTTP_202_ACCEPTED)
+
+
+class SubtitleUploadView(generics.CreateAPIView):
+    """Ajoute une piste de sous-titres (FR ou EN) à une vidéo dont on est propriétaire."""
+
+    serializer_class = SubtitleUploadSerializer
+    permission_classes = [IsContentManager]
+
+    def _video(self):
+        video = get_object_or_404(Video, id=self.kwargs['id'])
+        if video.owner != self.request.user and not self.request.user.is_admin:
+            raise PermissionDenied('Vous ne pouvez ajouter des sous-titres qu\'à vos propres vidéos.')
+        return video
+
+    def get_serializer_context(self):
+        return {**super().get_serializer_context(), 'video': self._video()}
+
+    def perform_create(self, serializer):
+        serializer.save(video=self._video())
+
+
+class SubtitleDeleteView(generics.DestroyAPIView):
+    queryset = Subtitle.objects.select_related('video')
+    lookup_url_kwarg = 'subtitle_id'
+    lookup_field = 'id'
+    permission_classes = [IsAuthenticated, CanManageSubtitle]
+
+
+class ProtectedSubtitleFileView(View):
+    """Sert le fichier .vtt d'une piste de sous-titres, protégé par le même token que le HLS."""
+
+    def get(self, request, video_id, language):
+        token = request.GET.get('token', '')
+        if not verify_hls_token(token, video_id):
+            raise Http404
+        subtitle = get_object_or_404(Subtitle, video_id=video_id, language=language)
+        return serve_protected_media(subtitle.file.name, content_type='text/vtt')
 
 
 class ProtectedHlsFileView(View):

@@ -86,6 +86,11 @@ export default function WatchPage({ params }: { params: Promise<{ id: string }> 
       <VideoPlayer
         src={resolveMediaUrl(video.hls_master_playlist)!}
         poster={resolveMediaUrl(video.thumbnail)}
+        subtitles={video.subtitles.map((subtitle) => ({
+          language: subtitle.language,
+          label: subtitle.label,
+          url: resolveMediaUrl(subtitle.url)!,
+        }))}
       />
       <h1 className="mt-4 text-2xl font-bold text-foreground">{video.title}</h1>
       {video.description && <p className="mt-2 text-muted">{video.description}</p>}

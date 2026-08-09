@@ -17,6 +17,7 @@ import type {
   Post,
   SearchResults,
   Subscription,
+  Subtitle,
   User,
   UserSearchResult,
   Video,
@@ -313,6 +314,21 @@ export function getVideosByMovie(movieId: string, token: string) {
 
 export function getVideo(id: string, token: string) {
   return request<Video>(`/api/v1/videos/${id}/`, { token });
+}
+
+export function uploadSubtitle(
+  videoId: string,
+  payload: { language: "fr" | "en"; file: File },
+  token: string,
+) {
+  const form = new FormData();
+  form.set("language", payload.language);
+  form.set("file", payload.file);
+  return request<Subtitle>(`/api/v1/videos/${videoId}/subtitles/`, { method: "POST", body: form, token });
+}
+
+export function deleteSubtitle(subtitleId: string, token: string) {
+  return request<void>(`/api/v1/videos/subtitles/${subtitleId}/`, { method: "DELETE", token });
 }
 
 // ---- Auth ----

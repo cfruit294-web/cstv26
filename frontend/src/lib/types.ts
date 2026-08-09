@@ -27,6 +27,14 @@ export interface Movie {
 
 export type VideoStatus = "pending" | "processing" | "ready" | "failed";
 export type VideoVisibility = "public" | "private" | "premium";
+export type SubtitleLanguage = "fr" | "en";
+
+export interface Subtitle {
+  id: string;
+  language: SubtitleLanguage;
+  label: string;
+  url: string;
+}
 
 export interface Video {
   id: string;
@@ -40,6 +48,7 @@ export interface Video {
   duration_seconds: number | null;
   hls_master_playlist: string;
   renditions: Record<string, string>;
+  subtitles: Subtitle[];
   error_message: string;
   created_at: string;
   updated_at: string;

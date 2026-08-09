@@ -9,6 +9,12 @@ def source_upload_path(instance, filename):
     return f'videos/source/{instance.id}/{filename}'
 
 
+def subtitle_upload_path(instance, filename):
+    # Nom fixe (langue) plutôt que le nom du fichier uploadé : la route de service protégée
+    # (ProtectedSubtitleFileView) reconstruit ce chemin à partir de video_id + language seuls.
+    return f'videos/subtitles/{instance.video_id}/{instance.language}.vtt'
+
+
 class Video(BaseModel):
     """Vidéo uploadée par un créateur, transcodée en HLS multi-résolution par Celery/FFmpeg."""
 
@@ -47,3 +53,24 @@ class Video(BaseModel):
 
     def __str__(self):
         return self.title
+
+
+class Subtitle(BaseModel):
+    """Piste de sous-titres (WebVTT) d'une vidéo, dans une langue donnée."""
+
+    class Language(models.TextChoices):
+        FR = 'fr', 'Français'
+        EN = 'en', 'Anglais'
+
+    video = models.ForeignKey(Video, on_delete=models.CASCADE, related_name='subtitles')
+    language = models.CharField(max_length=5, choices=Language.choices)
+    file = models.FileField(upload_to=subtitle_upload_path)
+
+    class Meta:
+        ordering = ['language']
+        constraints = [
+            models.UniqueConstraint(fields=['video', 'language'], name='unique_subtitle_language_per_video'),
+        ]
+
+    def __str__(self):
+        return f'{self.video.title} ({self.get_language_display()})'

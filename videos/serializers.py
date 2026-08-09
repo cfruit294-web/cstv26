@@ -1,7 +1,7 @@
 from django.conf import settings
 from rest_framework import serializers
 
-from videos.models import Video
+from videos.models import Subtitle, Video
 from videos.tokens import generate_hls_token
 
 ALLOWED_VIDEO_EXTENSIONS = ('.mp4', '.mov', '.mkv', '.avi', '.webm')
@@ -11,17 +11,18 @@ class VideoSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(source='owner.email', read_only=True)
     hls_master_playlist = serializers.SerializerMethodField()
     renditions = serializers.SerializerMethodField()
+    subtitles = serializers.SerializerMethodField()
 
     class Meta:
         model = Video
         fields = (
             'id', 'title', 'description', 'visibility', 'status', 'owner_email', 'movie',
-            'thumbnail', 'duration_seconds', 'hls_master_playlist', 'renditions',
+            'thumbnail', 'duration_seconds', 'hls_master_playlist', 'renditions', 'subtitles',
             'error_message', 'created_at', 'updated_at',
         )
         read_only_fields = (
             'id', 'status', 'owner_email', 'thumbnail', 'duration_seconds',
-            'hls_master_playlist', 'renditions', 'error_message', 'created_at', 'updated_at',
+            'hls_master_playlist', 'renditions', 'subtitles', 'error_message', 'created_at', 'updated_at',
         )
 
     def _token(self, obj):
@@ -37,6 +38,39 @@ class VideoSerializer(serializers.ModelSerializer):
             return {}
         token = self._token(obj)
         return {label: f'{path}?token={token}' for label, path in obj.renditions.items()}
+
+    def get_subtitles(self, obj):
+        token = self._token(obj)
+        return [
+            {
+                'id': subtitle.id,
+                'language': subtitle.language,
+                'label': subtitle.get_language_display(),
+                'url': f'subtitles/{obj.id}/{subtitle.language}.vtt?token={token}',
+            }
+            for subtitle in obj.subtitles.all()
+        ]
+
+
+class SubtitleUploadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Subtitle
+        fields = ('id', 'language', 'file')
+        read_only_fields = ('id',)
+
+    def validate(self, attrs):
+        video = self.context.get('video')
+        language = attrs.get('language')
+        if video and Subtitle.objects.filter(video=video, language=language).exists():
+            raise serializers.ValidationError(
+                f"Une piste de sous-titres existe déjà pour la langue « {language} » sur cette vidéo.",
+            )
+        return attrs
+
+    def validate_file(self, value):
+        if not value.name.lower().endswith('.vtt'):
+            raise serializers.ValidationError('Le fichier de sous-titres doit être au format WebVTT (.vtt).')
+        return value
 
 
 class VideoUploadSerializer(serializers.ModelSerializer):

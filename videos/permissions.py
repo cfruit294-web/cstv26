@@ -12,3 +12,10 @@ class CanAccessVideo(BasePermission):
         if request.method in SAFE_METHODS:
             return obj.status == Video.Status.READY and obj.visibility == Video.Visibility.PUBLIC
         return False
+
+
+class CanManageSubtitle(BasePermission):
+    """Seuls le propriétaire de la vidéo et les admins peuvent gérer ses sous-titres."""
+
+    def has_object_permission(self, request, view, obj):
+        return obj.video.owner_id == request.user.id or request.user.is_admin

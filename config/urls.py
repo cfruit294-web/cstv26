@@ -13,7 +13,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from accounts.permissions import IsAdmin
 from cms.sitemaps import PageSitemap
 from cms.views import robots_txt
-from videos.views import ProtectedHlsFileView
+from videos.views import ProtectedHlsFileView, ProtectedSubtitleFileView
 
 # Doc/schéma API réservés aux administrateurs : SessionAuthentication permet à un admin
 # connecté sur /admin/ de consulter /api/docs/ directement au navigateur (JWTAuthentication
@@ -60,6 +60,11 @@ urlpatterns = [
     # par les FileField/serializers ; seule la route est interceptée différemment (par nginx
     # en prod via proxy_pass, ici directement par Django).
     path('media/hls/<uuid:video_id>/<path:relpath>', ProtectedHlsFileView.as_view(), name='protected-hls'),
+    path(
+        'media/subtitles/<uuid:video_id>/<str:language>.vtt',
+        ProtectedSubtitleFileView.as_view(),
+        name='protected-subtitle',
+    ),
 ]
 
 if settings.DEBUG:
