@@ -40,12 +40,6 @@ class IsContentManager(HasRole):
     allowed_roles = ('admin', 'moderator', 'creator')
 
 
-class IsSeller(HasRole):
-    """Rôles autorisés à vendre des produits dans la boutique."""
-
-    allowed_roles = ('admin', 'creator', 'business')
-
-
 class IsSelfOrAdmin(BasePermission):
     """Un utilisateur ne peut consulter/modifier que son propre compte, sauf l'admin."""
 

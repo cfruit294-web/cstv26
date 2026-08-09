@@ -3,6 +3,9 @@ from decimal import Decimal, InvalidOperation
 
 import requests
 from django.conf import settings
+from django.db.models import Q
+
+RECOMMENDATIONS_LIMIT = 12
 
 
 class OmdbError(Exception):
@@ -83,3 +86,30 @@ def to_movie_fields(data):
         'imdb_rating': _parse_rating(data.get('imdbRating')),
         'raw_data': data,
     }
+
+
+def get_recommended_movies(movie, limit=RECOMMENDATIONS_LIMIT):
+    """Films à recommander sous une fiche : même genre en priorité, puis mêmes acteurs,
+    puis même type ; le tout trié par note IMDb décroissante, sans jamais renvoyer `movie`.
+    """
+    from catalog.models import Movie
+
+    genres = [g.strip() for g in movie.genre.split(',') if g.strip()]
+    actors = [a.strip() for a in movie.actors.split(',') if a.strip()]
+
+    genre_query = Q()
+    for genre in genres:
+        genre_query |= Q(genre__icontains=genre)
+
+    actor_query = Q()
+    for actor in actors:
+        actor_query |= Q(actors__icontains=actor)
+
+    base = Movie.objects.exclude(id=movie.id)
+    scored = base.filter(genre_query) if genres else Movie.objects.none()
+    if scored.count() < limit and actors:
+        scored = base.filter(genre_query | actor_query) if genres else base.filter(actor_query)
+    if scored.count() < limit:
+        scored = base.filter(Q(id__in=scored.values('id')) | Q(type=movie.type))
+
+    return list(scored.order_by('-imdb_rating', '-created_at')[:limit])

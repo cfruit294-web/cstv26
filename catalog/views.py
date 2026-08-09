@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, status
@@ -101,3 +102,14 @@ class MovieDetailView(generics.RetrieveAPIView):
     queryset = Movie.objects.all()
     lookup_field = 'id'
     permission_classes = [AllowAny]
+
+
+class MovieRecommendationsView(generics.ListAPIView):
+    """Films à recommander sous la fiche d'un film (même genre/acteurs en priorité)."""
+
+    serializer_class = MovieSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        movie = get_object_or_404(Movie, id=self.kwargs['id'])
+        return services.get_recommended_movies(movie)

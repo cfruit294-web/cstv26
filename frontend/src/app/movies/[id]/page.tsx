@@ -1,7 +1,10 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { ApiError, getMovie } from "@/lib/api";
+import { ApiError, getMovie, getMovieRecommendations } from "@/lib/api";
 import MovieVideosSection from "@/components/MovieVideosSection";
+import MovieRow from "@/components/MovieRow";
+import WatchlistButton from "@/components/WatchlistButton";
+import ShareButton from "@/components/ShareButton";
 
 export default async function MovieDetailPage({
   params,
@@ -16,6 +19,13 @@ export default async function MovieDetailPage({
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) notFound();
     throw err;
+  }
+
+  let recommendations: Awaited<ReturnType<typeof getMovieRecommendations>>["results"] = [];
+  try {
+    recommendations = (await getMovieRecommendations(id)).results;
+  } catch {
+    recommendations = [];
   }
 
   const hasPoster = movie.poster_url && movie.poster_url !== "N/A";
@@ -59,6 +69,11 @@ export default async function MovieDetailPage({
 
           <p className="mt-4 max-w-2xl text-foreground/90">{movie.plot}</p>
 
+          <div className="mt-5 flex flex-wrap gap-3">
+            <WatchlistButton movieId={movie.id} />
+            <ShareButton title={movie.title} />
+          </div>
+
           <dl className="mt-6 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
             {movie.director && (
               <div>
@@ -79,6 +94,10 @@ export default async function MovieDetailPage({
       <div className="mt-10">
         <h2 className="mb-3 text-lg font-semibold text-foreground">Regarder</h2>
         <MovieVideosSection movieId={movie.id} />
+      </div>
+
+      <div className="mt-10">
+        <MovieRow title="Pour vous" movies={recommendations} />
       </div>
     </div>
   );
