@@ -1,8 +1,10 @@
 """Sert des fichiers sous MEDIA_ROOT après vérification des droits par l'appelant.
 
-En dev (DEBUG, pas de nginx devant runserver) : lit le fichier directement.
-En prod (derrière nginx) : délègue via X-Accel-Redirect, nginx sert le fichier
-depuis la location interne `/internal-media/` (jamais atteignable de l'extérieur).
+Sans nginx devant l'appli (dev, ou déploiements comme Render sans reverse-proxy dédié) : lit le
+fichier directement via Django. Derrière nginx (USE_X_ACCEL_REDIRECT=True, cf docker-compose.yml) :
+délègue via X-Accel-Redirect, nginx sert le fichier depuis la location interne `/internal-media/`
+(jamais atteignable de l'extérieur) — bien plus efficace pour de gros fichiers vidéo que de les
+faire transiter par Django.
 """
 import mimetypes
 from pathlib import Path
@@ -30,14 +32,14 @@ def serve_protected_media(relative_path, download_name=None, content_type=None):
 
     content_type = content_type or mimetypes.guess_type(str(absolute_path))[0] or 'application/octet-stream'
 
-    if settings.DEBUG:
-        response = FileResponse(open(absolute_path, 'rb'), content_type=content_type)
+    if settings.USE_X_ACCEL_REDIRECT:
+        response = HttpResponse(content_type=content_type)
+        response['X-Accel-Redirect'] = f'/internal-media/{relative_path}'
         if download_name:
             response['Content-Disposition'] = f'attachment; filename="{download_name}"'
         return response
 
-    response = HttpResponse(content_type=content_type)
-    response['X-Accel-Redirect'] = f'/internal-media/{relative_path}'
+    response = FileResponse(open(absolute_path, 'rb'), content_type=content_type)
     if download_name:
         response['Content-Disposition'] = f'attachment; filename="{download_name}"'
     return response

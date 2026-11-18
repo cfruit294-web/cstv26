@@ -35,6 +35,7 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.prod
       USE_SQLITE: "False"
+      USE_X_ACCEL_REDIRECT: "True"
       DB_HOST: db
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0

@@ -1,0 +1,111 @@
+# Blueprint Render (https://render.com/docs/blueprint-spec) : provisionne Postgres, Redis, l'API
+# Django (web + worker Celery combinés dans le même service, voir docker/render/start-combined.sh
+# et DEPLOY.md pour le pourquoi) et le frontend Next.js.
+#
+# Avant de déployer : lis DEPLOY.md. Après le premier déploiement, vérifie les URLs réellement
+# assignées par Render (si "cstv-api"/"cstv-frontend" sont déjà pris, Render ajoute un suffixe) et
+# mets à jour CORS_ALLOWED_ORIGINS / NEXT_PUBLIC_API_URL si besoin.
+
+databases:
+  - name: cstv-db
+    databaseName: cstv
+    user: cstv
+    plan: free
+
+services:
+  - type: redis
+    name: cstv-redis
+    plan: free
+    ipAllowList: [] # pas d'accès public : seuls les services de ce blueprint y accèdent
+
+  - type: web
+    name: cstv-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter # nécessaire : le disque persistant n'est pas disponible sur le plan free
+    healthCheckPath: /api/v1/health/
+    disk:
+      name: cstv-media
+      mountPath: /app/media
+      sizeGB: 10
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.prod
+      - key: USE_SQLITE
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        value: .onrender.com
+      # URL publique du frontend une fois déployé (voir la note en haut de fichier si Render a
+      # attribué un nom différent de "cstv-frontend").
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://cstv-frontend.onrender.com
+      - key: FRONTEND_URL
+        value: https://cstv-frontend.onrender.com
+      - key: DB_HOST
+        fromDatabase:
+          name: cstv-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: cstv-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: cstv-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: cstv-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: cstv-db
+          property: password
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: cstv-redis
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: cstv-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: cstv-redis
+          property: connectionString
+      # --- À renseigner manuellement dans le dashboard Render (laissés vides ici) ---
+      - key: OMDB_API_KEY
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+      # Le direct (RTMP/MediaMTX) n'est pas hébergeable sur Render (pas de port TCP brut) : ces
+      # valeurs ne servent que si MediaMTX tourne ailleurs (VPS) et pointe vers cette API.
+      - key: RTMP_WEBHOOK_SECRET
+        generateValue: true
+      - key: RTMP_INGEST_BASE_URL
+        value: rtmp://à-configurer-plus-tard
+      - key: MEDIAMTX_HLS_INTERNAL_URL
+        value: http://à-configurer-plus-tard:8888
+
+  - type: web
+    name: cstv-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: starter
+    envVars:
+      # URL publique de l'API une fois déployée (même remarque que CORS_ALLOWED_ORIGINS ci-dessus).
+      - key: NEXT_PUBLIC_API_URL
+        value: https://cstv-api.onrender.com

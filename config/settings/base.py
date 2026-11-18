@@ -56,6 +56,7 @@ AUTH_USER_MODEL = 'accounts.User'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -94,6 +95,9 @@ DATABASES = {
         'PASSWORD': env('DB_PASSWORD', default='cstv'),
         'HOST': env('DB_HOST', default='localhost'),
         'PORT': env('DB_PORT', default='5432'),
+        # 'prefer' fonctionne aussi bien en local (pas de TLS) que sur des hébergeurs gérés qui
+        # l'exigent (ex: Render Postgres) : pas besoin de le forcer sauf cas particulier.
+        'OPTIONS': {'sslmode': env('DB_SSLMODE', default='prefer')},
     }
 }
 
@@ -115,6 +119,11 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Active X-Accel-Redirect pour les fichiers media protégés (core/media_access.py) uniquement
+# derrière un nginx configuré pour ça (voir docker-compose.yml, docker/nginx/nginx.conf). Sur un
+# hébergeur sans reverse-proxy dédié (ex: Render), Django sert directement le fichier.
+USE_X_ACCEL_REDIRECT = env('USE_X_ACCEL_REDIRECT', default=False, cast=bool)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
