@@ -1,67 +1,143 @@
-# Déployer CSTV sur Render
+# Déployer CSTV sur un VPS
 
-## Ce qui fonctionne et ce qui ne fonctionne pas
+Tout tourne avec Docker sur un seul serveur : Postgres, Redis, Django (web), le worker Celery
+(transcodage vidéo), Celery Beat, Next.js, MediaMTX (direct RTMP), nginx, et **Caddy** devant le
+tout pour le HTTPS automatique (certificat Let's Encrypt obtenu et renouvelé tout seul).
 
-- ✅ Catalogue de films, upload/transcodage vidéo, sous-titres, "Ma liste", historique de
-  visionnage, recommandations, publicités pre-roll, communauté, messagerie, notifications, CMS.
-- ❌ **Le direct (RTMP)** ne peut pas être ingéré par Render : ça ne supporte que le HTTP/HTTPS, pas
-  le port TCP brut (1935) dont OBS/Wirecast ont besoin. Pour activer le direct plus tard, héberge
-  MediaMTX sur un petit VPS externe et renseigne `RTMP_INGEST_BASE_URL` /
-  `MEDIAMTX_HLS_INTERNAL_URL` avec son adresse. Tout le reste du site fonctionne sans ça.
+```
+Internet ──443──> Caddy (HTTPS) ──> nginx ──┬─> Next.js        (pages du site)
+                                            ├─> Django/Daphne  (/api, /admin, /ws, vidéos protégées)
+                                            └─> MediaMTX HLS   (/hls, lecture des lives)
+OBS ─────1935──> MediaMTX (ingestion RTMP du direct)
+```
 
-## Architecture choisie
+Tout fonctionne, **direct compris** (contrairement à un hébergeur PaaS, un VPS ouvre le port RTMP).
 
-Web (Daphne) et worker Celery (transcodage vidéo) tournent **dans le même service Render**
-(`cstv-api`), pas dans deux services séparés comme en docker-compose. Raison : Render ne permet pas
-à deux services de partager un disque persistant, or le worker écrit les vidéos transcodées sur
-disque et le web les sert — ils doivent voir les mêmes fichiers. Voir
-`docker/render/start-combined.sh`. Limite acceptée : web et worker ne scalent pas indépendamment
-(largement suffisant pour démarrer ; à revoir plus tard si besoin avec un stockage S3).
+## 1. Choisir le serveur
 
-Pas de Celery Beat déployé : aucune tâche périodique n'est actuellement planifiée
-(`CELERY_BEAT_SCHEDULE` est vide). Si tu en ajoutes une plus tard, il faudra un service
-Background Worker supplémentaire pour `celery -A config beat`.
+- **Système** : Ubuntu 24.04 LTS.
+- **Taille minimale conseillée** : 2 vCPU, 4 Go de RAM, 80 Go de disque. Le transcodage ffmpeg est
+  gourmand en CPU : plus de vCPU = vidéos prêtes plus vite.
+- Exemples : Hetzner (CX32/CPX31), OVH, DigitalOcean, Contabo. Vérifie que le trafic sortant
+  inclus est large (la vidéo en consomme beaucoup).
 
-## Étapes
+## 2. Faire pointer le domaine
 
-1. **Créer le blueprint** : sur [render.com](https://dashboard.render.com), "New" → "Blueprint",
-   connecte le dépôt GitHub `cfruit294-web/cstv26`. Render lit `render.yaml` à la racine et propose
-   de créer : `cstv-db` (Postgres), `cstv-redis`, `cstv-api`, `cstv-frontend`.
+Chez ton registrar (ou Cloudflare DNS), crée un enregistrement **A** : `cstv.ton-domaine.com` →
+l'adresse IPv4 du VPS. Si tu utilises Cloudflare, mets le nuage en **gris (DNS only)** au moins
+pour le premier lancement, sinon Caddy ne peut pas obtenir le certificat.
 
-2. **Renseigner les variables manuelles** (marquées `sync: false` dans `render.yaml`, vides par
-   défaut) sur le service `cstv-api`, dans l'onglet Environment :
-   - `OMDB_API_KEY` — uniquement si tu veux aussi pouvoir importer des fiches depuis OMDb (pas
-     obligatoire, tu ajoutes déjà tes films à la main).
-   - `EMAIL_HOST` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` / `DEFAULT_FROM_EMAIL` — pour que les
-     emails (vérification de compte, réinitialisation de mot de passe) partent vraiment. Sans ça,
-     `EMAIL_BACKEND` reste sur la console (les emails s'affichent dans les logs, personne ne les
-     reçoit).
+Attends que `ping cstv.ton-domaine.com` renvoie bien l'IP du VPS avant l'étape 5.
 
-3. **Lancer le déploiement.** Render construit les images Docker (`Dockerfile` et
-   `frontend/Dockerfile`), crée la base et Redis, démarre les services. Ça prend quelques minutes
-   la première fois.
+## 3. Préparer le serveur
 
-4. **Vérifier les URLs réellement attribuées.** Si les noms `cstv-api`/`cstv-frontend` sont déjà
-   pris par quelqu'un d'autre sur Render, il ajoute un suffixe (ex: `cstv-api-a1b2.onrender.com`).
-   Regarde les vraies URLs dans le dashboard, et si elles diffèrent de celles codées dans
-   `render.yaml` (`CORS_ALLOWED_ORIGINS`, `FRONTEND_URL` sur `cstv-api` ; `NEXT_PUBLIC_API_URL` sur
-   `cstv-frontend`), corrige-les dans l'onglet Environment de chaque service puis redéploie
-   ("Manual Deploy").
+Connecte-toi en SSH (`ssh root@IP_DU_VPS`), puis :
 
-5. **Créer un compte admin** : dans le dashboard Render, ouvre le "Shell" du service `cstv-api` et
-   lance :
-   ```
-   python manage.py createsuperuser
-   ```
+```bash
+# Docker + Docker Compose (script officiel)
+curl -fsSL https://get.docker.com | sh
 
-6. **Ajouter un film** : va sur `https://<ton-url-cstv-api>/admin/`, connecte-toi, puis suis la
-   section "Ajouter un film manuellement (sans OMDb)" du `README.md`.
+# Pare-feu : SSH, HTTP/HTTPS (Caddy) et RTMP (direct)
+ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 443/udp && ufw allow 1935/tcp
+ufw --force enable
+```
 
-## Coûts
+Note : Docker contourne ufw pour les ports qu'il publie. Seuls Caddy (80/443) et MediaMTX (1935)
+publient des ports ; Postgres, Redis, Django et nginx restent sur le réseau Docker interne.
 
-Le plan `starter` est nécessaire pour `cstv-api` et `cstv-frontend` (le disque persistant n'existe
-pas sur le plan gratuit, et un service gratuit s'endort après inactivité — incompatible avec un
-worker Celery qui doit rester actif). `cstv-db` et `cstv-redis` sont sur le plan gratuit par défaut
-dans `render.yaml` — vérifie les conditions actuelles sur render.com (le Postgres gratuit expire
-généralement au bout de quelques semaines/mois selon les CGU du moment) avant de considérer le site
-comme prêt pour de vrais utilisateurs sur la durée.
+## 4. Récupérer le code et configurer
+
+```bash
+git clone https://github.com/<compte>/<depot>.git /opt/cstv
+cd /opt/cstv
+cp .env.production.example .env
+nano .env
+```
+
+Dans `.env`, remplace chaque `CHANGE-ME` :
+- `DOMAIN`, `ALLOWED_HOSTS`, `NEXT_PUBLIC_API_URL`, `FRONTEND_URL`, `CORS_ALLOWED_ORIGINS`,
+  `RTMP_INGEST_BASE_URL` : ton domaine.
+- `SECRET_KEY`, `DB_PASSWORD`, `RTMP_WEBHOOK_SECRET` : trois valeurs aléatoires différentes,
+  générées avec `openssl rand -hex 32`.
+- Emails (optionnel) : `EMAIL_HOST`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`.
+  Sans ça, remets `EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend` : les emails
+  n'apparaîtront que dans les logs.
+
+`.env` ne doit jamais être commité (il est dans `.gitignore`).
+
+## 5. Lancer
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Le premier build prend plusieurs minutes. Ensuite :
+
+```bash
+# État des conteneurs (tous doivent être "running" / "healthy")
+docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+
+# Logs de Caddy : doit indiquer "certificate obtained successfully"
+docker compose -f docker-compose.yml -f docker-compose.prod.yml logs caddy
+
+# Créer le compte administrateur
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec web python manage.py createsuperuser
+```
+
+Puis ouvre `https://cstv.ton-domaine.com` (site) et `https://cstv.ton-domaine.com/admin/`.
+
+Astuce : pour ne pas retaper les `-f`, ajoute dans `.env` la ligne
+`COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml`, ensuite `docker compose up -d` suffit.
+
+## 6. Mettre à jour après un changement de code
+
+```bash
+cd /opt/cstv
+git pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Les migrations de base de données sont appliquées automatiquement au démarrage du conteneur `web`.
+
+## 7. Sauvegardes (à mettre en place dès le début)
+
+Base de données, chaque nuit à 3h, 14 jours conservés (`crontab -e` sur le VPS) :
+
+```cron
+0 3 * * * cd /opt/cstv && docker compose exec -T db pg_dump -U cstv cstv | gzip > /root/backup-cstv-$(date +\%F).sql.gz && find /root -name 'backup-cstv-*.sql.gz' -mtime +14 -delete
+```
+
+Copie régulièrement ces fichiers **hors du serveur** (sinon une panne du VPS emporte tout). Les
+vidéos sont dans le volume Docker `media_volume` : à sauvegarder aussi, ou passe au stockage S3
+(section suivante), qui les met hors du serveur.
+
+## Stockage des vidéos : disque du VPS ou bucket S3
+
+Par défaut, les vidéos sont sur le disque du VPS (volume `media_volume`), servies par nginx après
+vérification des droits par Django. C'est le plus simple pour démarrer.
+
+Quand le disque devient trop petit, passe sur un bucket S3-compatible : **Cloudflare R2** est
+recommandé (bande passante sortante gratuite). Crée un bucket **privé** avec une clé d'API limitée
+à ce bucket, ajoute ce CORS au bucket :
+
+```json
+[{ "AllowedOrigins": ["*"], "AllowedMethods": ["GET", "HEAD"], "AllowedHeaders": ["*"], "MaxAgeSeconds": 3600 }]
+```
+
+(`"*"` est nécessaire et sans risque : le navigateur suit une redirection site → bucket et envoie
+alors `Origin: null` ; la protection, ce sont les URLs signées qui expirent en 5 minutes.)
+
+Puis renseigne dans `.env` : `AWS_STORAGE_BUCKET_NAME`, `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, `AWS_S3_REGION_NAME=auto`,
+`AWS_S3_ENDPOINT_URL=https://<account_id>.r2.cloudflarestorage.com`, et relance (étape 6).
+Les vidéos déjà sur le disque ne sont pas déplacées automatiquement.
+
+## Le direct (OBS / Wirecast)
+
+Dans l'admin, chaque LiveStream affiche son URL d'ingestion (`rtmp://cstv.ton-domaine.com/...`)
+et sa clé. Dans OBS : Paramètres → Stream → Service "Personnalisé", colle l'URL et la clé.
+
+## Limite connue
+
+Supprimer une vidéo ne supprime pas (encore) ses fichiers (source, HLS, miniature) du disque ou du
+bucket : ils restent et occupent de la place.

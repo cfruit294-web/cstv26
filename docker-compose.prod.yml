@@ -1,0 +1,36 @@
+# Surcouche de production pour un VPS : à combiner avec docker-compose.yml.
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Ajoute Caddy (HTTPS automatique) devant nginx, et refuse de démarrer sans les secrets requis
+# plutôt que de retomber sur les mots de passe par défaut du docker-compose de dev.
+services:
+  db:
+    environment:
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD doit etre defini dans .env}"
+
+  web:
+    environment:
+      SECRET_KEY: "${SECRET_KEY:?SECRET_KEY doit etre defini dans .env}"
+
+  nginx:
+    # Plus exposé directement : seul Caddy (HTTPS) est joignable de l'extérieur.
+    ports: !reset []
+
+  caddy:
+    image: caddy:2.8.4-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: "${DOMAIN:?DOMAIN doit etre defini dans .env (ex: cstv.example.com)}"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - nginx
+
+volumes:
+  caddy_data:
+  caddy_config:

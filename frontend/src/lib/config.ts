@@ -12,4 +12,19 @@ export const API_BASE_URL =
     ? process.env.INTERNAL_API_URL?.replace(/\/$/, "") ?? PUBLIC_API_URL
     : PUBLIC_API_URL;
 
+// En-têtes à joindre aux appels serveur passant par le réseau interne. Django (settings prod) ne
+// connaît pas l'hôte "web" et redirige le HTTP vers HTTPS : on lui annonce donc l'hôte et le
+// protocole PUBLICS, comme le ferait nginx. Ça garde aussi les URLs absolues qu'il génère
+// (miniatures, avatars...) correctes pour le navigateur. Vide hors docker (pas d'appel interne).
+function internalForwardedHeaders(): Record<string, string> {
+  if (typeof window !== "undefined" || !process.env.INTERNAL_API_URL) return {};
+  const publicUrl = new URL(PUBLIC_API_URL);
+  return {
+    "X-Forwarded-Host": publicUrl.host,
+    "X-Forwarded-Proto": publicUrl.protocol.replace(":", ""),
+  };
+}
+
+export const SERVER_FORWARDED_HEADERS = internalForwardedHeaders();
+
 export const WS_BASE_URL = PUBLIC_API_URL.replace(/^http/, "ws");

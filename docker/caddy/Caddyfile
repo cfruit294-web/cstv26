@@ -1,0 +1,8 @@
+# Point d'entrée public en production (docker-compose.prod.yml) : HTTPS automatique.
+# Caddy obtient et renouvelle tout seul le certificat Let's Encrypt pour $DOMAIN, à condition que
+# le DNS du domaine pointe déjà vers ce serveur et que les ports 80/443 soient ouverts.
+# Il relaie tout vers nginx, qui garde son rôle (routage, fichiers statiques, vidéos protégées
+# via X-Accel-Redirect). Les WebSockets (/ws/) passent sans configuration supplémentaire.
+{$DOMAIN} {
+	reverse_proxy nginx:80
+}

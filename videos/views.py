@@ -1,6 +1,4 @@
-from pathlib import Path
-
-from django.conf import settings
+from django.core.files.storage import default_storage
 from django.db.models import Q
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
@@ -14,7 +12,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsContentManager
-from core.media_access import resolve_within, serve_protected_media
+from core.media_access import serve_protected_media
+from core.storage import safe_media_name
 from videos.models import Subtitle, Video
 from videos.permissions import CanAccessVideo, CanManageSubtitle
 from videos.serializers import SubtitleUploadSerializer, VideoSerializer, VideoUploadSerializer
@@ -129,18 +128,21 @@ class ProtectedHlsFileView(View):
             raise Http404
         video = get_object_or_404(Video, id=video_id, status=Video.Status.READY)
 
-        root = Path(settings.MEDIA_ROOT) / 'hls' / str(video.id)
-        target = resolve_within(root, relpath)
-        if not target.is_file():
-            raise Http404
+        name = safe_media_name(f'hls/{video.id}', relpath)
 
-        if target.suffix == '.m3u8':
+        if name.endswith('.m3u8'):
+            # Les manifests sont toujours relus et réécrits ici (quel que soit le stockage) pour y
+            # propager le token ; seuls les segments .ts sont délégués (nginx ou URL S3 signée).
+            if not default_storage.exists(name):
+                raise Http404
+            with default_storage.open(name, 'rb') as fh:
+                content = fh.read().decode('utf-8')
             lines = []
-            for line in target.read_text().splitlines():
+            for line in content.splitlines():
                 if line and not line.startswith('#'):
                     sep = '&' if '?' in line else '?'
                     line = f'{line}{sep}token={token}'
                 lines.append(line)
             return HttpResponse('\n'.join(lines) + '\n', content_type='application/vnd.apple.mpegurl')
 
-        return serve_protected_media(f'hls/{video.id}/{relpath}', content_type='video/mp2t')
+        return serve_protected_media(name, content_type='video/mp2t')

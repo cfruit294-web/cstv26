@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/config";
+import { API_BASE_URL, SERVER_FORWARDED_HEADERS } from "@/lib/config";
 import type {
   Ad,
   AdPlacement,
@@ -56,6 +56,9 @@ async function request<T>(
   init?: RequestInit & { token?: string },
 ): Promise<T> {
   const headers = new Headers(init?.headers);
+  for (const [name, value] of Object.entries(SERVER_FORWARDED_HEADERS)) {
+    headers.set(name, value);
+  }
   if (!(init?.body instanceof FormData) && !headers.has("Content-Type") && init?.body) {
     headers.set("Content-Type", "application/json");
   }

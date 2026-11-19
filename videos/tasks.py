@@ -1,15 +1,24 @@
+import logging
+import tempfile
 from pathlib import Path
 
 from celery import shared_task
-from django.conf import settings
 
+from core.storage import local_copy, upload_directory, upload_file
 from videos import services
 from videos.models import Video
+
+logger = logging.getLogger(__name__)
 
 
 @shared_task
 def process_video(video_id):
-    """Sonde, génère la miniature et transcode la vidéo source en HLS multi-résolution."""
+    """Sonde, génère la miniature et transcode la vidéo source en HLS multi-résolution.
+
+    Tout le travail ffmpeg se fait dans un dossier temporaire ; le résultat est ensuite poussé vers
+    le stockage média (disque local ou S3, cf core/storage.py). Le worker n'a donc pas besoin de
+    partager un disque avec le serveur web.
+    """
     try:
         video = Video.objects.get(id=video_id)
     except Video.DoesNotExist:
@@ -18,16 +27,24 @@ def process_video(video_id):
     video.status = Video.Status.PROCESSING
     video.save(update_fields=['status'])
 
-    source_path = Path(video.source_file.path)
-    output_root = Path(settings.MEDIA_ROOT) / 'hls' / str(video.id)
-
     try:
+        with tempfile.TemporaryDirectory(prefix=f'cstv-{video.id}-') as workdir:
+            _transcode_and_store(video, Path(workdir))
+    except services.TranscodingError as exc:
+        _mark_failed(video, str(exc))
+    except Exception as exc:  # noqa: BLE001 — stockage/réseau : ne jamais laisser la vidéo bloquée en "processing"
+        logger.exception('Traitement de la vidéo %s échoué', video.id)
+        _mark_failed(video, f'Erreur pendant le traitement ou l\'envoi vers le stockage : {exc}')
+
+
+def _transcode_and_store(video, workdir):
+    output_root = workdir / 'hls'
+    thumbnail_local = workdir / 'thumbnail.jpg'
+
+    with local_copy(video.source_file, workdir) as source_path:
         video.duration_seconds = services.probe_duration_seconds(source_path)
         source_height = services.probe_video_height(source_path)
-
-        thumbnail_relative = f'videos/thumbnails/{video.id}.jpg'
-        services.generate_thumbnail(source_path, Path(settings.MEDIA_ROOT) / thumbnail_relative)
-        video.thumbnail.name = thumbnail_relative
+        services.generate_thumbnail(source_path, thumbnail_local)
 
         applicable_ladder = [r for r in services.RENDITION_LADDER if r[2] <= source_height]
         if not applicable_ladder:
@@ -44,16 +61,21 @@ def process_video(video_id):
                 'bandwidth': bandwidth, 'relative_path': f'{label}/playlist.m3u8',
             })
 
-        services.build_master_playlist(output_root, manifest_entries)
+    services.build_master_playlist(output_root, manifest_entries)
 
-        video.renditions = {
-            entry['label']: f'hls/{video.id}/{entry["relative_path"]}' for entry in manifest_entries
-        }
-        video.hls_master_playlist = f'hls/{video.id}/master.m3u8'
-        video.status = Video.Status.READY
-        video.error_message = ''
-        video.save()
-    except services.TranscodingError as exc:
-        video.status = Video.Status.FAILED
-        video.error_message = str(exc)
-        video.save(update_fields=['status', 'error_message'])
+    hls_prefix = f'hls/{video.id}'
+    upload_directory(output_root, hls_prefix)
+    if thumbnail_local.is_file():
+        video.thumbnail.name = upload_file(thumbnail_local, f'videos/thumbnails/{video.id}.jpg')
+
+    video.renditions = {entry['label']: f'{hls_prefix}/{entry["relative_path"]}' for entry in manifest_entries}
+    video.hls_master_playlist = f'{hls_prefix}/master.m3u8'
+    video.status = Video.Status.READY
+    video.error_message = ''
+    video.save()
+
+
+def _mark_failed(video, message):
+    video.status = Video.Status.FAILED
+    video.error_message = message
+    video.save(update_fields=['status', 'error_message'])

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { API_BASE_URL } from "@/lib/config";
+import { API_BASE_URL, SERVER_FORWARDED_HEADERS } from "@/lib/config";
 import type { CmsPage, PageType } from "@/lib/types";
 
 // Fetch dédié (plutôt que lib/api.ts, qui force `cache: "no-store"` sur tout) : ces liens changent
@@ -8,6 +8,7 @@ import type { CmsPage, PageType } from "@/lib/types";
 async function getFooterPages(type: PageType): Promise<CmsPage[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/v1/cms/pages/?type=${type}`, {
+      headers: SERVER_FORWARDED_HEADERS,
       next: { revalidate: 3600 },
     });
     if (!res.ok) return [];

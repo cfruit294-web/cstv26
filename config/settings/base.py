@@ -125,6 +125,11 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # hébergeur sans reverse-proxy dédié (ex: Render), Django sert directement le fichier.
 USE_X_ACCEL_REDIRECT = env('USE_X_ACCEL_REDIRECT', default=False, cast=bool)
 
+# Durée de validité (secondes) des URLs signées vers lesquelles on redirige les fichiers protégés
+# (segments HLS, sous-titres) quand le stockage est S3. Courte exprès : le lecteur en redemande
+# une nouvelle à chaque segment, via le token HLS qui, lui, porte la vraie durée de session.
+MEDIA_SIGNED_URL_EXPIRE = env('MEDIA_SIGNED_URL_EXPIRE', default=300, cast=int)
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- Django REST Framework ---

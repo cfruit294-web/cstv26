@@ -40,3 +40,17 @@ class ServeProtectedMediaTests(TestCase):
         from django.http import Http404
         with self.assertRaises(Http404):
             serve_protected_media('does-not-exist.txt')
+
+
+class SafeMediaNameTests(TestCase):
+    def test_accepts_nested_relative_path(self):
+        from core.storage import safe_media_name
+        self.assertEqual(safe_media_name('hls/abc', '720p/segment_001.ts'), 'hls/abc/720p/segment_001.ts')
+
+    def test_rejects_escape_attempts(self):
+        from django.http import Http404
+
+        from core.storage import safe_media_name
+        for bad in ('../x.ts', 'a/../../x.ts', '/etc/passwd', '..', '', 'a\\..\\x', 'a\x00b'):
+            with self.subTest(bad=bad), self.assertRaises(Http404):
+                safe_media_name('hls/abc', bad)
